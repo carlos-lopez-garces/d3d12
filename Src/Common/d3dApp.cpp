@@ -108,3 +108,64 @@ void D3DApp::CreateCommandObjects() {
   // Because we'll reset it shortly and Reset expects it to be closed.
   mCommandList->Close();
 }
+
+void D3DApp::CreateSwapChain() {
+  // In case we want to recreate the swap chain (e.g. for changing settings at runtime).
+  mSwapChain.Reset();
+
+  DXGI_SWAP_CHAIN_DESC sd;
+
+  // WE ARE DESCRIBING THE BACK BUFFER HERE NEXT:
+
+  // The BufferDesc member is of type DXGI_MODE_DESC, "a display mode".
+  sd.BufferDesc.Width = mClientWidth;
+  sd.BufferDesc.Height = mClientHeight;
+  // In hertz (frequency, times per second).
+  sd.BufferDesc.RefreshRate.Numerator = 60;
+  sd.BufferDesc.RefreshRate.Denominator = 1;
+  sd.BufferDesc.Format = mBackBufferFormat;
+  // The order in which the image is drawn: progressive (scanline to scanline),
+  // upper field first (what's a field?), lower field first.
+  sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+  sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+
+  // The SampleDesc member is of type DXGI_SAMPLE_DESC; multisampling parameters
+  // (basically just sample count and quality).
+  sd.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+  // TODO: Why do we set the quality ourselves? Isn't it determined by the device
+  // based on sample count and texture (render target) type?
+  sd.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+
+  // The BufferUsage member is of type DXGI_USAGE and indicates what we are going
+  // to use the back buffer for: as a render target. Other usage types for a buffer
+  // include SHADER_INPUT (if the texture is to be used as input for a shader).
+  sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+
+  // 2.
+  sd.BufferCount = SwapChainBufferCount;
+  
+  sd.OutputWindow = mhMainWnd;
+  // Windowed vs full screen.
+  sd.Windowed = true;
+  
+  // The SwapEffect member is of type DXGI_SWAP_EFFECT and instructs what is to be
+  // done with the back buffer after presenting it. Only DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
+  // and DXGI_SWAP_EFFECT_FLIP_DISCARD are supported by Direct3D 12.
+  //
+  // In the "flip model" of back buffer presentation, the (desktop) window manager has 
+  // direct access to the back buffer; in the bitblt model, a copy has to be made for the
+  // window manager to access the contents of the back buffer.
+  sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+
+  // Allow for sd.BufferDesc (the "display mode") to change when calling ResizeTarget.
+  // sd.BufferDesc contains the width and height of the back buffer. This flag allows those
+  // dimensions to change (when going from windowed to full screen modes and viceversa, and
+  // also when resizing the window, presumably).
+  sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+  ThrowIfFailed(mdxgiFactory->CreateSwapChain(
+    mCommandQueue.Get(),
+    &sd,
+    mSwapChain.GetAddressOf()
+  ));
+}
