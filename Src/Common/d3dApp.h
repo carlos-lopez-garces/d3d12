@@ -117,6 +117,7 @@ protected:
   D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView() const;
   D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView() const;
 
+  // Create command queue, command allocator, and command list.
   void CreateCommandObjects();
 
   // Have the application wait until the GPU has processed all the commands in the queue.

@@ -78,3 +78,33 @@ bool D3DApp::InitDirect3D() {
 
   return true;
 }
+
+void D3DApp::CreateCommandObjects() {
+  D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+  // A direct command list is a list of commands that the GPU can execute directly.
+  //
+  // Other command list types are bundle, compute, and copy. A bundle is a group of
+  // commands recorded together; this avoids the overhead of recording (executing?)
+  // them directly one by one.
+  queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+  queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+  ThrowIfFailed(md3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
+
+  ThrowIfFailed(md3dDevice->CreateCommandAllocator(
+    D3D12_COMMAND_LIST_TYPE_DIRECT,
+    IID_PPV_ARGS(&mDirectCmdListAlloc.GetAddressOf())
+  ));
+
+  ThrowIfFailed(md3dDevice->CreateCommandList(
+    0,
+    D3D12_COMMAND_LIST_TYPE_DIRECT,
+    mDirectCmdListAlloc.Get(),
+    // No pipeline state object. A pipeline state object is required for actually
+    // drawing. Looks like we are not going to draw yet.
+    nullptr,
+    IID_PPV_ARGS(mCommandList.GetAddressOf())
+  ));
+
+  // Because we'll reset it shortly and Reset expects it to be closed.
+  mCommandList->Close();
+}
