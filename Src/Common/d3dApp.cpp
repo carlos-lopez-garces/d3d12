@@ -169,3 +169,42 @@ void D3DApp::CreateSwapChain() {
     mSwapChain.GetAddressOf()
   ));
 }
+
+void D3DApp::CreateRtvAndDsvDescriptorHeaps() {
+  // The heap for render target descriptors (which include the 2 buffers of the swap chain).
+  D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+  rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
+  rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+  rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  rtvHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())
+  ));
+
+  // The heap for the depth/stencil buffer descriptor.
+  D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+  dsvHeapDesc.NumDescriptors = 1;
+  dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+  dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  dsvHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())
+  ));
+}
+
+ID3D12Resource* D3DApp::CurrentBackBuffer() const {
+  return mSwapChainBuffer[mCurrentBackBuffer].Get();
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView() const {
+  return CD3DX12_CPU_DESCRIPTOR_HANDLE(
+    // Address of 1st element + current back buffer index * size of descriptor.
+    mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+    mCurrentBackBuffer,
+    mRtvDescriptorSize
+  );
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView() const {
+  return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+}
