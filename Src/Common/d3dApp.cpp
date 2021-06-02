@@ -358,7 +358,7 @@ void D3DApp::OnResize() {
   mScreenViewport.MinDepth = 0.0f;
   mScreenViewport.MaxDepth = 1.0f;
 
-  // Update scissor accordingly.
-  // TODO: what's a scissor rectangle?
+  // Update scissor rectangle accordingly, mapped to the entire back buffer. The
+  // scissor rectangle is used to cull the pixels that area outside of it.
   mScissorRect = { 0, 0, mClientWidth, mClientHeight };
 }
