@@ -123,7 +123,9 @@ protected:
   // Have the application wait until the GPU has processed all the commands in the queue.
   void FlushCommandQueue();
 
-
+  // Window/viewport resizing involves recreating the swap chain buffers and their 
+  // descriptors (actually, OnResize is the function that creates these descriptors for
+  // the first time too).
   virtual void OnResize();
   virtual void Update(const GameTimer& gt) = 0;
   virtual void Draw(const GameTimer& gt) = 0;

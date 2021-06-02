@@ -232,3 +232,132 @@ void D3DApp::FlushCommandQueue() {
     CloseHandle(eventHandle);
   }
 }
+
+void D3DApp::OnResize() {
+  assert(md3dDevice);
+  assert(mSwapChain);
+  assert(mDirectCmdListAlloc);
+
+  // Since resizing will change/recreate resources and these resources may be referenced by
+  // commands currently in the queue, we have to let the GPU process all of them 
+  // before proceeding.
+  FlushCommandQueue();
+
+  ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+  // TODO: what does Reset do exactly?
+  for (int i = 0; i < SwapChainBufferCount; ++i) {
+    mSwapChainBuffer[i].Reset();
+  }
+
+  mDepthStencilBuffer.Reset();
+
+  ThrowIfFailed(mSwapChain->ResizeBuffers(
+    SwapChainBufferCount,
+    mClientWidth,
+    mClientHeight,
+    mBackBufferFormat,
+    // This flag is what allows the buffers to be resized. See CreateSwapChain.
+    DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH
+  ));
+
+  mCurrentBackBuffer = 0;
+
+  // A descriptor heap contains 1 or more handles stored contiguously.
+  // GetCPUDescriptorHandleForHeapStart returns a handle to the first one.
+  CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+  for (UINT i = 0; i < SwapChainBufferCount; i++) {
+    // Create views (descriptors) for the swap chain buffers.
+    ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
+    md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
+    rtvHeapHandle.Offset(1, mRtvDescriptorSize);
+  }
+
+  D3D12_RESOURCE_DESC depthStencilDesc;
+  // The term "dimension" doesn't refer to size, but to the dimensionality of
+  // the texture: 1D, 2D, 3D (and buffer).
+  // TODO: what's the difference between a 1D texture and a buffer?
+  depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  depthStencilDesc.Alignment = 0;
+  depthStencilDesc.Width = mClientWidth;
+  depthStencilDesc.Height = mClientHeight;
+  // "Depth size" is for 3D textures. "Aray size" is for 1D and 2D textures.
+  depthStencilDesc.DepthOrArraySize = 1;
+  depthStencilDesc.MipLevels = 1;
+  // Depth/stencil buffers typically have the DXGI_FORMAT_D24_UNORM_S8_UINT format,
+  // but here we use TYPELESS because this resource is not only written to, but is
+  // also read by some of the shaders: resources that are input to shaders need views
+  // with format DXGI_FORMAT_R24_UNORM_X8_TYPELESS; the format we use here,
+  // DXGI_FORMAT_R24G8_TYPELESS is compatible with both those formats.
+  //
+  // SRV format: DXGI_FORMAT_R24_UNORM_X8_TYPELESS.
+  // DSV Format: DXGI_FORMAT_D24_UNORM_S8_UINT.
+  depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+  depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+  depthStencilDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+  depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+  depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+  D3D12_CLEAR_VALUE optClear;
+  optClear.Format = mDepthStencilFormat;
+  // The farthest normalized z distance. The first object drawn behind a given pixel
+  // will be closer than this initial value.
+  optClear.DepthStencil.Depth = 1.0f;
+  optClear.DepthStencil.Stencil = 0;
+
+  // Create the depth/stencil buffer.
+  ThrowIfFailed(md3dDevice->CreateCommittedResource(
+    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+    D3D12_HEAP_FLAG_NONE,
+    &depthStencilDesc,
+    D3D12_RESOURCE_STATE_COMMON,
+    &optClear,
+    IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())
+  ));
+
+  // Now create the view (descriptor) for that depth/stencil buffer.
+  D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+  dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+  // TODO: what happens if the view's dimension doesn't match the resource's dimension?
+  dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+  dsvDesc.Format = mDepthStencilFormat;
+  dsvDesc.Texture2D.MipSlice = 0;
+  md3dDevice->CreateDepthStencilView(
+    mDepthStencilBuffer.Get(),
+    &dsvDesc,
+    // This returns a handle to the first descriptor in the depth/stencil descriptor heap.
+    DepthStencilView()
+  );
+
+  mCommandList->ResourceBarrier(
+    1,
+    // Transition barriers indicate that a set of resources will transition between 
+    // different usages: in this case, from whatever D3D12_RESOURCE_STATE_COMMON is
+    // to being used as a depth/stencil buffer.
+    &CD3DX12_RESOURCE_BARRIER::Transition(
+      mDepthStencilBuffer.Get(),
+      D3D12_RESOURCE_STATE_COMMON,
+      D3D12_RESOURCE_STATE_DEPTH_WRITE
+    )
+  );
+
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+  // Put the resizing command in the queue.
+  // TODO: what command? I only see the resource barrier for the depth/stencil buffer.
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+  FlushCommandQueue();
+
+  // Update viewport accordingly.
+  mScreenViewport.TopLeftX = 0;
+  mScreenViewport.TopLeftY = 0;
+  mScreenViewport.Width = static_cast<float>(mClientWidth);
+  mScreenViewport.Height = static_cast<float>(mClientHeight);
+  mScreenViewport.MinDepth = 0.0f;
+  mScreenViewport.MaxDepth = 1.0f;
+
+  // Update scissor accordingly.
+  // TODO: what's a scissor rectangle?
+  mScissorRect = { 0, 0, mClientWidth, mClientHeight };
+}
