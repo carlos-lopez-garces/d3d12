@@ -349,7 +349,8 @@ void D3DApp::OnResize() {
 
   FlushCommandQueue();
 
-  // Update viewport accordingly.
+  // Update viewport accordingly. The viewport is mapped to the entire back buffer / 
+  // window / screen.
   mScreenViewport.TopLeftX = 0;
   mScreenViewport.TopLeftY = 0;
   mScreenViewport.Width = static_cast<float>(mClientWidth);
