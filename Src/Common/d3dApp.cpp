@@ -208,3 +208,27 @@ D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView() const {
 D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView() const {
   return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 }
+
+void D3DApp::FlushCommandQueue() {
+  mCurrentFence++;
+
+  // Signal updates the fence to the specified value. Since this is also
+  // a command that's added to the queue, the fence update won't occur
+  // until the GPU processes the prior commands.
+  ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
+
+  if (mFence->GetCompletedValue() < mCurrentFence) {
+    // The GPU hasn't updated the fence: it still has at least one command
+    // to execute before getting to the fence.
+    //
+    // CreateEventEx, and the function that waits for the event to be signaled,
+    // WaitForSingleObject, are part of the synchapi.h API.
+    HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+    
+    // The ID3D12 API uses the synchapi.h API to listen to and wait for GPU events.
+    // In this case, the GPU event is the execution of the fence update.
+    ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
+    WaitForSingleObject(eventHandle, INFINITE);
+    CloseHandle(eventHandle);
+  }
+}
