@@ -29,6 +29,7 @@ public:
   void Set4xMsaaState(bool value) const;
 
   virtual bool Initialize();
+  // Render loop.
   int Run();
   virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
