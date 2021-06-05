@@ -20,11 +20,12 @@ public:
   HWND MainWnd() const;
   float AspectRatio() const;
 
-  // 4X MSAA (multisampling antialiasing) upscales the resolution of the back buffer by 4, so
-  // that each original pixel has 4 subpixels. Each original pixel is sampled only once, at the
-  // center of the 4 subpixels. The subpixels that pass the depth test in the current draw call
-  // get this sampled color; the ones that don't, preserve their current color. The color of 
-  // the pixel will then be the blend of its 4 subpixels.
+  // 4X MSAA (multisampling antialiasing) upscales the resolution of the front and 
+  // back buffers by 4, so that each screen pixel have 4 subpixels. Each screen
+  // pixel is sampled only once, at the center, where the 4 subpixels meet. The
+  // subpixels that pass the depth test in the current draw call get this sampled 
+  // color; the ones that don't, retain their current color. The color of the screen
+  // pixel will then be the blend of its 4 subpixels.
   bool Get4xMsaaState() const;
   void Set4xMsaaState(bool value) const;
 
