@@ -364,7 +364,6 @@ void D3DApp::OnResize() {
 }
 
 int D3DApp::Run() {
-  // TODO: implement MSG.
   MSG msg = [0];
 
   mTimer.Reset();
