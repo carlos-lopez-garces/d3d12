@@ -32,12 +32,9 @@ int WINAPI WinMain(
     if (!app.Initialize()) {
       return 0;
     }
-    // TODO: implement D3DApp::Run.
     return app.Run();
   }
   catch (DxException& e) {
-    // TODO: implement DxException.
-    // TODO: implement MessageBox.
     MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
     return 0;
   }
