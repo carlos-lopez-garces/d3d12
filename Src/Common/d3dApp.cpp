@@ -6,6 +6,20 @@ using Microsoft::WRL::ComPtr;
 using namespace std;
 using namespace DirectX;
 
+D3DApp::D3DApp(HINSTANCE hInstance) : mhAppInst(hInstance) {
+  // A single mApp (a member of D3DApp) exists across instances of the D3DApp 
+  // class because it has static storage duration.
+  assert(mApp == nullptr);
+
+  mApp = this;
+}
+
+D3DApp::~D3DApp() {
+  if (md3dDevice != nullptr) {
+    FlushCommandQueue();
+  }
+}
+
 bool D3DApp::InitDirect3D() {
 #if defined(DEBUG) || defined(_DEBUG)
   {
@@ -382,7 +396,6 @@ int D3DApp::Run() {
       // The application pauses when the window becomes inactive or minimized or
       // when it's being resized.
       if (!mAppPaused) {
-        // TODO: implement.
         CalculateFrameStats();
         // Update the scene.
         Update(mTimer);
