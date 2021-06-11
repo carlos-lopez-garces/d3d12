@@ -20,6 +20,12 @@ D3DApp::~D3DApp() {
   }
 }
 
+// TODO: why initialize it here?
+D3DApp* D3DApp::mApp = nullptr;
+D3DApp* D3DApp::GetApp() {
+  return mApp;
+}
+
 bool D3DApp::InitDirect3D() {
 #if defined(DEBUG) || defined(_DEBUG)
   {
@@ -83,7 +89,8 @@ bool D3DApp::InitDirect3D() {
   assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");
 
 #ifdef _DEBUG
-  LogAdapters();
+  // TODO: implement.
+  // LogAdapters();
 #endif
 
   CreateCommandObjects();
@@ -106,7 +113,7 @@ void D3DApp::CreateCommandObjects() {
 
   ThrowIfFailed(md3dDevice->CreateCommandAllocator(
     D3D12_COMMAND_LIST_TYPE_DIRECT,
-    IID_PPV_ARGS(&mDirectCmdListAlloc.GetAddressOf())
+    IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())
   ));
 
   ThrowIfFailed(md3dDevice->CreateCommandList(
@@ -237,7 +244,7 @@ void D3DApp::FlushCommandQueue() {
     //
     // CreateEventEx, and the function that waits for the event to be signaled,
     // WaitForSingleObject, are part of the synchapi.h API.
-    HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+    HANDLE eventHandle = CreateEventExW(nullptr, nullptr, false, EVENT_ALL_ACCESS);
     
     // The ID3D12 API uses the synchapi.h API to listen to and wait for GPU events.
     // In this case, the GPU event is the execution of the fence update.
@@ -378,7 +385,7 @@ void D3DApp::OnResize() {
 }
 
 int D3DApp::Run() {
-  MSG msg = [0];
+  MSG msg = { 0 };
 
   mTimer.Reset();
 
@@ -621,7 +628,7 @@ void D3DApp::CalculateFrameStats() {
     wstring fpsStr = to_wstring(fps);
     wstring mspfStr = to_wstring(mspf);
 
-    wtring windowText = mMainWndCaption + L"    fps: " + fpsStr + L"   mspf: " + mspfStr;
+    wstring windowText = mMainWndCaption + L"    fps: " + fpsStr + L"   mspf: " + mspfStr;
     SetWindowText(mhMainWnd, windowText.c_str());
 
     frameCnt = 0;

@@ -27,7 +27,7 @@ public:
   // color; the ones that don't, retain their current color. The color of the screen
   // pixel will then be the blend of its 4 subpixels.
   bool Get4xMsaaState() const;
-  void Set4xMsaaState(bool value) const;
+  void Set4xMsaaState(bool value);
 
   virtual bool Initialize();
   // Render loop (or message loop, see 

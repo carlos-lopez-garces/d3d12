@@ -1,7 +1,7 @@
 #include "../Common/d3dApp.h"
 #include <DirectXColors.h>
 
-#include namespace DirectX;
+using namespace DirectX;
 
 class InitDirect3DApp : public D3DApp {
 public:
@@ -16,29 +16,6 @@ private:
   virtual void Update(const GameTimer& gt) override;
   virtual void Draw(const GameTimer& gt) override;
 };
-
-int WINAPI WinMain(
-  HINSTANCE hInstance,
-  HINSTANCE prevInstance,
-  PSTR cmdLine,
-  int showCmd) {
-
-#if defined(DEBUG) | defined(_DEBUG)
-  _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
-
-  try {
-    InitDirect3DApp app(hInstance);
-    if (!app.Initialize()) {
-      return 0;
-    }
-    return app.Run();
-  }
-  catch (DxException& e) {
-    MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
-    return 0;
-  }
-}
 
 InitDirect3DApp::InitDirect3DApp(HINSTANCE hInstance)
   : D3DApp(hInstance) {
@@ -112,7 +89,7 @@ void InitDirect3DApp::Draw(const GameTimer& gt) {
     // The 2nd argument is the start address of an array of descriptor; that's
     // why we pass the count.
     1,
-    &CurrentBackBufferView().
+    &CurrentBackBufferView(),
     true,
     &DepthStencilView()
   );
@@ -144,4 +121,27 @@ void InitDirect3DApp::Draw(const GameTimer& gt) {
   // Wait until all the commands that are currently in the queue are executed,
   // including the ones we just inserted.
   FlushCommandQueue();
+}
+
+int WINAPI WinMain(
+  HINSTANCE hInstance,
+  HINSTANCE prevInstance,
+  PSTR cmdLine,
+  int showCmd) {
+
+#if defined(DEBUG) | defined(_DEBUG)
+  _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+  try {
+    InitDirect3DApp app(hInstance);
+    if (!app.Initialize()) {
+      return 0;
+    }
+    return app.Run();
+  }
+  catch (DxException& e) {
+    MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+    return 0;
+  }
 }
