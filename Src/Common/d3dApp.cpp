@@ -60,7 +60,7 @@ bool D3DApp::InitDirect3D() {
   }
 
   ThrowIfFailed(
-    md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&md3dDevice))
+    md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence))
   );
 
   // Descriptor sizes vary across GPUs; that's why they need to be queried; they can't be constant 
