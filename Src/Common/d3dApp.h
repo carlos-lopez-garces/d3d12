@@ -30,8 +30,11 @@ public:
   void Set4xMsaaState(bool value) const;
 
   virtual bool Initialize();
-  // Render loop.
+  // Render loop (or message loop, see 
+  // docs.microsoft.com/en-us/windows/win32/learnwin32/window-messages).
   int Run();
+  // Window procedure (through DispatchMessage()->MainWndProc()).
+  // See docs.microsoft.com/en-us/windows/win32/learnwin32/writing-the-window-procedure.
   virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 protected:
@@ -129,6 +132,7 @@ protected:
   // descriptors (actually, OnResize is the function that creates these descriptors for
   // the first time too).
   virtual void OnResize();
+  // Update the scene.
   virtual void Update(const GameTimer& gt) = 0;
   virtual void Draw(const GameTimer& gt) = 0;
 

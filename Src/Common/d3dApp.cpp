@@ -370,14 +370,21 @@ int D3DApp::Run() {
 
   while (msg.message != WM_QUIT) {
     if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
+      // There are window messages.
       TranslateMessage(&msg);
+      // Calls the window procedure; in our case, MainWndProc()->MsgProc()
+      // (The window procedure determines much of the behavior of the window,
+      // see docs.microsoft.com/en-us/windows/win32/learnwin32/writing-the-window-procedure).
       DispatchMessage(&msg);
     } else {
       mTimer.Tick();
 
+      // The application pauses when the window becomes inactive or minimized or
+      // when it's being resized.
       if (!mAppPaused) {
         // TODO: implement.
         CalculateFrameStats();
+        // Update the scene.
         Update(mTimer);
         Draw(mTimer);
       } else {
@@ -391,4 +398,221 @@ int D3DApp::Run() {
 
 float D3DApp::AspectRatio() const {
   return static_cast<float>(mClientWidth) / mClientHeight;
+}
+
+HINSTANCE D3DApp::AppInst() const {
+  return mhAppInst;
+}
+
+HWND D3DApp::MainWnd() const {
+  return mhMainWnd;
+}
+
+bool D3DApp::Get4xMsaaState() const {
+  return m4xMsaaState;
+}
+
+void D3DApp::Set4xMsaaState(bool value) {
+  if (m4xMsaaState != value) {
+    m4xMsaaState = value;
+    // The MSAA configuration is part of the description of the swap chain
+    // buffers, so it needs to be recreated.
+    CreateSwapChain();
+    // Since the swap chain is new, the views/descriptors of the swap chain
+    // buffers need to be recreated.
+    OnResize();
+  }
+}
+
+bool D3DApp::Initialize() {
+  if (!InitMainWindow()) {
+    return false;
+  }
+
+  if (!InitDirect3D()) {
+    return false;
+  }
+
+  OnResize();
+
+  return true;
+}
+
+LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+  switch (msg) {
+  case WM_ACTIVATE:
+    if (LOWORD(wParam) == WA_INACTIVE) {
+      mAppPaused = true;
+      mTimer.Stop();
+    }
+    else {
+      mAppPaused = false;
+      mTimer.Start();
+    }
+    return 0;
+
+  case WM_SIZE:
+    mClientWidth = LOWORD(lParam);
+    mClientHeight = HIWORD(lParam);
+    if (md3dDevice) {
+      if (wParam == SIZE_MINIMIZED) {
+        mAppPaused = true;
+        mMinimized = true;
+        mMaximized = false;
+      }
+      else if (wParam == SIZE_MAXIMIZED) {
+        mAppPaused = false;
+        mMinimized = false;
+        mMaximized = true;
+        OnResize();
+      }
+      else if (wParam == SIZE_RESTORED) {
+
+        if (mMinimized) {
+          mAppPaused = false;
+          mMinimized = false;
+          OnResize();
+        }
+
+        else if (mMaximized) {
+          mAppPaused = false;
+          mMaximized = false;
+          OnResize();
+        }
+        else if (mResizing) {}
+        else {
+          OnResize();
+        }
+      }
+    }
+    return 0;
+
+  case WM_ENTERSIZEMOVE:
+    mAppPaused = true;
+    mResizing = true;
+    mTimer.Stop();
+    return 0;
+
+  case WM_EXITSIZEMOVE:
+    mAppPaused = false;
+    mResizing = false;
+    mTimer.Start();
+    OnResize();
+    return 0;
+
+  case WM_DESTROY:
+    PostQuitMessage(0);
+    return 0;
+
+  case WM_MENUCHAR:
+    return MAKELRESULT(0, MNC_CLOSE);
+
+  case WM_GETMINMAXINFO:
+    ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
+    ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
+    return 0;
+
+  case WM_LBUTTONDOWN:
+  case WM_MBUTTONDOWN:
+  case WM_RBUTTONDOWN:
+    OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    return 0;
+  case WM_LBUTTONUP:
+  case WM_MBUTTONUP:
+  case WM_RBUTTONUP:
+    OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    return 0;
+  case WM_MOUSEMOVE:
+    OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    return 0;
+  case WM_KEYUP:
+    if (wParam == VK_ESCAPE) {
+      PostQuitMessage(0);
+    }
+    else if ((int)wParam == VK_F2)
+      Set4xMsaaState(!m4xMsaaState);
+
+    return 0;
+  }
+
+  return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+// The window procedure that determines the behavior of the window. Invoked by
+// DispatchMessage in the render/message loop.
+// See docs.microsoft.com/en-us/windows/win32/learnwin32/writing-the-window-procedure.
+LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+  return D3DApp::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
+}
+
+bool D3DApp::InitMainWindow() {
+  WNDCLASS wc;
+  // Redraw the entire window if a movement or size adjustment changes the width
+  // (CS_HREDRAW) or height (CS_VREDRAW) of the client area.
+  wc.style = CS_HREDRAW | CS_VREDRAW;
+  // Determines the behavior of the window. Invoked by DispatchMessage in the 
+  // render/message loop.
+  wc.lpfnWndProc = MainWndProc;
+  wc.cbClsExtra = 0;
+  wc.cbWndExtra = 0;
+  wc.hInstance = mhAppInst;
+  wc.hIcon = LoadIcon(0, IDI_APPLICATION);
+  wc.hCursor = LoadCursor(0, IDC_ARROW);
+  // A null "paint brush" for the background makes sense, because it's our 
+  // application that'll draw in the client area.
+  wc.hbrBackground = (HBRUSH) GetStockObject(NULL_BRUSH);
+  wc.lpszMenuName = 0;
+  wc.lpszClassName = L"MainWnd";
+
+  if (!RegisterClass(&wc)) {
+    MessageBox(0, L"RegisterClass failed.", 0, 0);
+    return false;
+  }
+
+  RECT R = { 0, 0, mClientWidth, mClientHeight };
+  AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
+  int width = R.right - R.left;
+  int height = R.bottom - R.top;
+
+  mhMainWnd = CreateWindow(
+    L"MainWnd", mMainWndCaption.c_str(),
+    WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+    width, height, 0, 0, mhAppInst, 0
+  );
+  if (!mhMainWnd) {
+    MessageBox(0, L"CreateWindow failed.", 0, 0);
+    return false;
+  }
+
+  ShowWindow(mhMainWnd, SW_SHOW);
+  UpdateWindow(mhMainWnd);
+
+  return true;
+}
+
+void D3DApp::CalculateFrameStats() {
+  static int frameCnt = 0;
+  static float timeElapsed = 0.0f;
+
+  frameCnt++;
+
+  // Keep counting frames until 1 second has elapsed; that is, don't
+  // enter this block unless 1 second has elapsed since the last time.
+  if ((mTimer.TotalTime() - timeElapsed) >= 0.0f) {
+    // Technically framCnt/1sec.
+    float fps = (float)frameCnt;
+    // Milliseconds per frame.
+    float mspf = 1000.0f / fps;
+
+    wstring fpsStr = to_wstring(fps);
+    wstring mspfStr = to_wstring(mspf);
+
+    wtring windowText = mMainWndCaption + L"    fps: " + fpsStr + L"   mspf: " + mspfStr;
+    SetWindowText(mhMainWnd, windowText.c_str());
+
+    frameCnt = 0;
+    // 1 second elapsed?
+    timeElapsed += 1.0f;
+  }
 }

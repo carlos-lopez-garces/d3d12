@@ -12,7 +12,7 @@ public:
 
 private:
   virtual void OnResize() override;
-  // TODO: implement GameTimer.
+  // Update the scene.
   virtual void Update(const GameTimer& gt) override;
   virtual void Draw(const GameTimer& gt) override;
 };
