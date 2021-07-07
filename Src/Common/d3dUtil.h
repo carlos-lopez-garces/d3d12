@@ -50,3 +50,18 @@ public:
   std::wstring Filename;
   int LineNumber = -1;
 };
+
+class d3dUtil {
+public:
+
+  // Creates a buffer resource in the default heap, by first copying the data to an upload buffer.
+  // The function doesn't manage the upload buffer; instead, the caller does. That's because the
+  // function doesn't wait for the GPU to be done using it, so it must survive the call.
+  static Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(
+    ID3D12Device *device,
+    ID3D12GraphicsCommandList *cmdList,
+    const void *initData,
+    UINT64 byteSize,
+    Microsoft::WRL::ComPtr<ID3D12Resource> &uploadBuffer
+  );
+};
