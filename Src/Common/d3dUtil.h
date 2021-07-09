@@ -64,6 +64,11 @@ public:
     UINT64 byteSize,
     Microsoft::WRL::ComPtr<ID3D12Resource> &uploadBuffer
   );
+
+  // Constant buffers must be multiples of 256 bytes.
+  static UINT CalcConstantBufferByteSize(UINT byteSize) {
+    return (byteSize + 255) & ~255;
+  }
 };
 
 // A component mesh of a MeshGeometry. The vertices and indices of a SubmeshGeometry
