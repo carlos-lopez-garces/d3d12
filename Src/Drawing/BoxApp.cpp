@@ -30,6 +30,11 @@ private:
   std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
   Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
   Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+  // Pipeline state object. Binds most objects to the pipeline: root
+  // signature, shader byte code, rasterizer state, input layout, etc.
+  Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO = nullptr;
+  Microsoft::WRL::ComPtr<ID3DBlob> mvsByteCode = nullptr;
+  Microsoft::WRL::ComPtr<ID3DBlob> mpsByteCode = nullptr;
 
 private:
   void BuildShadersAndInputLayout();
@@ -39,9 +44,15 @@ private:
   // The root signature describes the resources that will be bound to the
   // pipeline and that shaders will access.
   void BuildRootSignature();
+  void BuildPSO();
 };
 
 void BoxApp::BuildShadersAndInputLayout() {
+  // VS and PS are the entrypoints of the vertex and pixel shaders in the same file.
+  // vs_5_0 and ps_5_0 are shader profiles of shader model 5.
+  mvsByteCode = d3dUtil::CompileShader(L"Drawing.hlsl", nullptr, "VS", "vs_5_0");
+  mpsByteCode = d3dUtil::CompileShader(L"Drawing.hlsl", nullptr, "PS", "ps_5_0");
+
   mInputLayout = {
     // struct Vertex.Pos.
     // DXGI_FORMAT_R32G32B32_FLOAT is the data type of a 3D vector.
@@ -208,6 +219,35 @@ void BoxApp::BuildRootSignature() {
     serializedRootSig->GetBufferSize(),
     IID_PPV_ARGS(&mRootSignature))
   );
+}
+
+void BoxApp::BuildPSO()
+{
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
+  ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+  psoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+  psoDesc.pRootSignature = mRootSignature.Get();
+  psoDesc.VS =
+  {
+    reinterpret_cast<BYTE*>(mvsByteCode->GetBufferPointer()),
+    mvsByteCode->GetBufferSize()
+  };
+  psoDesc.PS =
+  {
+    reinterpret_cast<BYTE*>(mpsByteCode->GetBufferPointer()),
+    mpsByteCode->GetBufferSize()
+  };
+  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.SampleMask = UINT_MAX;
+  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.NumRenderTargets = 1;
+  psoDesc.RTVFormats[0] = mBackBufferFormat;
+  psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+  psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+  psoDesc.DSVFormat = mDepthStencilFormat;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }
 
 int WINAPI WinMain(
