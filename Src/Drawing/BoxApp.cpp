@@ -29,12 +29,16 @@ private:
   // Additional data for shaders (vertex transformation matrix).
   std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
   Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
+  Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
 private:
   void BuildShadersAndInputLayout();
   void BuildBoxGeometry();
   void BuildDescriptorHeaps();
   void BuildConstantBuffers();
+  // The root signature describes the resources that will be bound to the
+  // pipeline and that shaders will access.
+  void BuildRootSignature();
 };
 
 void BoxApp::BuildShadersAndInputLayout() {
@@ -164,6 +168,45 @@ void BoxApp::BuildConstantBuffers() {
   md3dDevice->CreateConstantBufferView(
     &cbvDesc,
     mCbvHeap->GetCPUDescriptorHandleForHeapStart()
+  );
+}
+
+void BoxApp::BuildRootSignature() {
+  CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
+  CD3DX12_DESCRIPTOR_RANGE cbvTable;
+  // Descriptor table with 1 descriptor. 0 is "baseShaderRegister".
+  // Bound to register b0 (b is for constant buffers).
+  cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+  // This parameter will be a descriptor table, but it could be a root constant
+  // or a single descriptor.
+  slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
+
+  // The root signature is a list of root parameters, slotRootParameter. We only
+  // defined one.
+  // Without the flag, the input assembler stage is omitted.
+  CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+  
+  Microsoft::WRL::ComPtr<ID3DBlob> serializedRootSig = nullptr;
+  Microsoft::WRL::ComPtr<ID3DBlob> errorBlob = nullptr;
+
+  HRESULT hr = D3D12SerializeRootSignature(
+    &rootSigDesc,
+    D3D_ROOT_SIGNATURE_VERSION_1,
+    serializedRootSig.GetAddressOf(),
+    errorBlob.GetAddressOf()
+  );
+  if (errorBlob != nullptr)
+  {
+    ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+  }
+  ThrowIfFailed(hr);
+
+  ThrowIfFailed(md3dDevice->CreateRootSignature(
+    0,
+    serializedRootSig->GetBufferPointer(),
+    serializedRootSig->GetBufferSize(),
+    IID_PPV_ARGS(&mRootSignature))
   );
 }
 
