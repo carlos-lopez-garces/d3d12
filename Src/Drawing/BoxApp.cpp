@@ -1,4 +1,6 @@
 #include "../Common/d3dApp.h"
+#include "../Common/Math.h"
+#include "../Common/UploadBuffer.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -12,16 +14,27 @@ struct Vertex {
   XMFLOAT4 Color;
 };
 
+// Data to be accessed by the vertex shader from a constant buffer resource.
+struct ObjectConstants {
+  // Composite world, view, and projection matrix.
+  XMFLOAT4X4 WorldViewProj = Math::Identity4x4();
+};
+
 // TODO: Rename to DrawApp.
 class BoxApp : public D3DApp {
 private:
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
   // Vertex and index buffers and views.
   std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
+  // Additional data for shaders (vertex transformation matrix).
+  std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
+  Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
 
 private:
   void BuildShadersAndInputLayout();
   void BuildBoxGeometry();
+  void BuildDescriptorHeaps();
+  void BuildConstantBuffers();
 };
 
 void BoxApp::BuildShadersAndInputLayout() {
@@ -119,4 +132,43 @@ void BoxApp::BuildBoxGeometry() {
   submesh.BaseVertexLocation = 0;
 
   mBoxGeo->DrawArgs["box"] = submesh;
+}
+
+void BoxApp::BuildDescriptorHeaps() {
+  // Constant buffer descriptors / views.
+  D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+  cbvHeapDesc.NumDescriptors = 1;
+  // Can store constant buffer views (CBV), shader resource views (SRV), and 
+  // unordered access views (UAV).
+  cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  // Makes the descriptors accesible to shaders.
+  cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  cbvHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)
+  ));
+}
+
+void BoxApp::BuildConstantBuffers() {
+  mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
+  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+  D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
+  int boxCBufIndex = 0;
+  cbAddress += boxCBufIndex * objCBByteSize;
+  
+  // Resource descriptor / view.
+  D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+  cbvDesc.BufferLocation = cbAddress;
+  cbvDesc.SizeInBytes = objCBByteSize;
+  
+  md3dDevice->CreateConstantBufferView(
+    &cbvDesc,
+    mCbvHeap->GetCPUDescriptorHandleForHeapStart()
+  );
+}
+
+int WINAPI WinMain(
+  HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd
+) {
+  return 0;
 }
