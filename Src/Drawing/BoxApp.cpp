@@ -39,6 +39,7 @@ private:
 public:
   BoxApp(HINSTANCE hInstance) : D3DApp(hInstance) {};
   ~BoxApp() {};
+  virtual bool Initialize() override;
 
 private:
   void BuildShadersAndInputLayout();
@@ -314,6 +315,30 @@ void BoxApp::Draw(const GameTimer& gt) {
 
   // Block until the GPU is done processing the command queue.
   FlushCommandQueue();
+}
+
+bool BoxApp::Initialize() {
+  if (!D3DApp::Initialize()) {
+    return false;
+  }
+
+  ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+  BuildDescriptorHeaps();
+  BuildConstantBuffers();
+  BuildRootSignature();
+  BuildShadersAndInputLayout();
+  BuildBoxGeometry();
+  BuildPSO();
+
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+  // Block until the GPU processes all of the commands.
+  FlushCommandQueue();
+
+  return true;
 }
 
 int WINAPI WinMain(
