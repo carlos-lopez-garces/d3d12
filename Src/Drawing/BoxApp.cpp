@@ -35,6 +35,23 @@ private:
   Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO = nullptr;
   Microsoft::WRL::ComPtr<ID3DBlob> mvsByteCode = nullptr;
   Microsoft::WRL::ComPtr<ID3DBlob> mpsByteCode = nullptr;
+  XMFLOAT4X4 mWorld = Math::Identity4x4();
+  XMFLOAT4X4 mView = Math::Identity4x4();
+  XMFLOAT4X4 mProj = Math::Identity4x4();
+  // In this app, the camera can only rotate around a fixed point and 
+  // zoom in and out of it. That point is the origin of world space.
+  // The position and orientation of the camera is thus described more
+  // conveniently using spherical coordinates, where the radius r is the
+  // distance from the fixed point to the camera's position; this radius
+  // will be shortened or enlarged when zooming in and out; and phi is
+  // angle between the Y axis and the line of vision.
+  // 3PI/2.
+  //
+  // The following are the initial spherical coordinates of the camera.
+  float mTheta = 1.5f * XM_PI;
+  // PI/4.
+  float mPhi = XM_PIDIV4;
+  float mRadius = 5.0f;
 
 public:
   BoxApp(HINSTANCE hInstance) : D3DApp(hInstance) {};
@@ -51,7 +68,10 @@ private:
   void BuildRootSignature();
   void BuildPSO();
 
-  virtual void Draw(const GameTimer& gt) override;
+  virtual void Draw(const GameTimer &gt) override;
+  // Updates the world view projection matrix based on the camera's position
+  // and orientation.
+  virtual void Update(const GameTimer &gt) override;
 };
 
 void BoxApp::BuildShadersAndInputLayout() {
@@ -339,6 +359,36 @@ bool BoxApp::Initialize() {
   FlushCommandQueue();
 
   return true;
+}
+
+void BoxApp::Update(const GameTimer& gt) {
+  // Convert the world space spherical coordinates of the camera to cartesian.
+  float x = mRadius * sinf(mPhi) * cosf(mTheta);
+  float y = mRadius * cosf(mPhi);
+  float z = mRadius * sinf(mPhi) * sinf(mTheta);
+
+  // Position, target, and a up vector are enough to establish an orthonormal
+  // basis for view space, out of which a view transformation matrix can be
+  // obtained.
+  XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
+  // The camera's target is always the origin of world space.
+  XMVECTOR target = XMVectorZero();
+  XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+  // View matrix.
+  XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+  XMStoreFloat4x4(&mView, view);
+
+  XMMATRIX world = XMLoadFloat4x4(&mWorld);
+  XMMATRIX proj = XMLoadFloat4x4(&mProj);
+  // The * operator has left-to-right associativity in C++, so this composite
+  // transformation is PVW. (I'm used to evaluating matrix multiplications from
+  // right to left; that's why PVW is world * view * proj.)
+  XMMATRIX worldViewProj = world * view * proj;
+
+  ObjectConstants objConstants;
+  XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+  mObjectCB->CopyData(0, objConstants);
 }
 
 int WINAPI WinMain(
