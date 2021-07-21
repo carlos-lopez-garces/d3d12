@@ -36,6 +36,10 @@ private:
   Microsoft::WRL::ComPtr<ID3DBlob> mvsByteCode = nullptr;
   Microsoft::WRL::ComPtr<ID3DBlob> mpsByteCode = nullptr;
 
+public:
+  BoxApp(HINSTANCE hInstance) : D3DApp(hInstance) {};
+  ~BoxApp() {};
+
 private:
   void BuildShadersAndInputLayout();
   void BuildBoxGeometry();
@@ -45,6 +49,8 @@ private:
   // pipeline and that shaders will access.
   void BuildRootSignature();
   void BuildPSO();
+
+  virtual void Draw(const GameTimer& gt) override;
 };
 
 void BoxApp::BuildShadersAndInputLayout() {
@@ -248,6 +254,66 @@ void BoxApp::BuildPSO()
   psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
   psoDesc.DSVFormat = mDepthStencilFormat;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
+}
+
+void BoxApp::Draw(const GameTimer& gt) {
+  // Need to make sure that all command lists allocated from here and
+  // in the command queue have been executed before resetting the allocator.
+  ThrowIfFailed(mDirectCmdListAlloc->Reset());
+  ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
+
+  mCommandList->RSSetViewports(1, &mScreenViewport);
+  mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+  mCommandList->ResourceBarrier(1, 
+    &CD3DX12_RESOURCE_BARRIER::Transition(
+      CurrentBackBuffer(),
+      D3D12_RESOURCE_STATE_PRESENT,
+      D3D12_RESOURCE_STATE_RENDER_TARGET
+    )
+  );
+
+  // The depth and stencil tests occure in the output merger stage. Blending
+  // is also implemented in that stage: blend the output color of the pixel shader
+  // for the corresponding fragment with the color currently held by that pixel
+  // in the back buffer.
+  mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+  mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+  mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+  ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get()};
+  mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+  // The root signature describes the inputs and outputs of the shaders.
+  mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+  mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
+  mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
+  mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+  mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+
+  // The actual draw command.
+  mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
+
+  // State transition to present the back buffer to the screen.
+  mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+    CurrentBackBuffer(),
+    D3D12_RESOURCE_STATE_RENDER_TARGET,
+    D3D12_RESOURCE_STATE_PRESENT
+  ));
+
+  // Now's the GPU's turn.
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+  // Present to the screen the back buffer.
+  ThrowIfFailed(mSwapChain->Present(0, 0));
+  mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
+
+  // Block until the GPU is done processing the command queue.
+  FlushCommandQueue();
 }
 
 int WINAPI WinMain(
