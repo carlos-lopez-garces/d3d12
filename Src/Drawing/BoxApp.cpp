@@ -69,9 +69,13 @@ private:
   void BuildPSO();
 
   virtual void Draw(const GameTimer &gt) override;
-  // Updates the world view projection matrix based on the camera's position
-  // and orientation.
+  // Updates the world view projection caused by changes in the camera's 
+  // position and orientation, or in the size of the window (which may change
+  // the aspect ratio and thus the projection matrix).
   virtual void Update(const GameTimer &gt) override;
+  // Updates the projection matrix as a result of changes to the aspect ratio
+  // of the window.
+  virtual void OnResize() override;
 };
 
 void BoxApp::BuildShadersAndInputLayout() {
@@ -389,6 +393,23 @@ void BoxApp::Update(const GameTimer& gt) {
   ObjectConstants objConstants;
   XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
   mObjectCB->CopyData(0, objConstants);
+}
+
+void BoxApp::OnResize() {
+  D3DApp::OnResize();
+
+  XMMATRIX P = XMMatrixPerspectiveFovLH(
+    // Vertical FOV angle.
+    0.25f * Math::Pi,
+    // Obtains the aspect ratio from the window's current width and height.
+    AspectRatio(),
+    // Near plane.
+    1.0f,
+    // Far plane.
+    1000.0f
+  );
+
+  XMStoreFloat4x4(&mProj, P);
 }
 
 int WINAPI WinMain(
