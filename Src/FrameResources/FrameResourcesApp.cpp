@@ -40,12 +40,14 @@ private:
   // Data that applies to all draw calls and that doesn't depend on the object
   // being drawn.
   PassConstants mMainPassCB;
+  ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
 private:
   void UpdateObjectCBs(const GameTimer &gt);
   // Updates the pass constants (e.g. view and projection matrices) and sets
   // them in the current frame resource.
   void UpdateMainPassCB(const GameTimer &gt);
+  void BuildRootSignature();
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -94,4 +96,42 @@ void FrameResourcesApp::UpdateMainPassCB(const GameTimer& gt) {
 
   auto currPassCB = mCurrFrameResource->PassCB.get();
   currPassCB->CopyData(0, mMainPassCB);
+}
+
+void FrameResourcesApp::BuildRootSignature() {
+  // 2 constant buffer descriptor tables, one for the object constant buffer
+  // and one for the pass constant buffer.
+
+  CD3DX12_DESCRIPTOR_RANGE cbvTable0;
+  // 1 descriptor, use shader register 0 (b0).
+  cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+
+  CD3DX12_DESCRIPTOR_RANGE cbvTable1;
+  // 1 descriptor, use shader register 1 (b1).
+  cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
+
+  CD3DX12_ROOT_PARAMETER slotRootParameter[2];
+  slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
+  slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
+
+  CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
+    2, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+  );
+
+  ComPtr<ID3DBlob> serializedRootSig = nullptr;
+  ComPtr<ID3DBlob> errorBlob = nullptr;
+  HRESULT hr = D3D12SerializeRootSignature(
+    &rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf()
+  );
+  if (errorBlob != nullptr) {
+    ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+  }
+  ThrowIfFailed(hr);
+
+  ThrowIfFailed(md3dDevice->CreateRootSignature(
+    0,
+    serializedRootSig->GetBufferPointer(),
+    serializedRootSig->GetBufferSize(),
+    IID_PPV_ARGS(mRootSignature.GetAddressOf())
+  ));
 }
