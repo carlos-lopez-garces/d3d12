@@ -4,10 +4,14 @@
 #include "../Common/Math.h"
 #include "../Common/UploadBuffer.h"
 
+// This is data that is associated with an individual object.
 struct ObjectConstants {
   DirectX::XMFLOAT4X4 World = Math::Identity4x4();
 };
 
+// This is data that applies to all draw calls and that doesn't depend on
+// the object being drawn. For example, the view and projection matrices
+// depend on the camera and not on any of the objects in the scene.
 struct PassConstants {
   DirectX::XMFLOAT4X4 View = Math::Identity4x4();
   DirectX::XMFLOAT4X4 InvView = Math::Identity4x4();
@@ -47,7 +51,9 @@ struct FrameResource {
   // from them for frames that aren't currently in the GPU's queue.
   Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
+  // Data that doesn't depend on any individual object in the scene.
   std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
+  // Data that is specific to a given object, like its world matrix.
   std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
 
   // For synchronizing the application and the GPU with respect to the 

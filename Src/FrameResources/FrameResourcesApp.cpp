@@ -29,3 +29,29 @@ struct RenderItem {
   UINT StartIndexLocation = 0;
   int BaseVertexLocation = 0;
 };
+
+class FrameResourcesApp : public D3DApp {
+private:
+  FrameResource* mCurrFrameResource = nullptr;
+  std::vector<std::unique_ptr<RenderItem>> mAllRenderItems;
+
+private:
+  void UpdateObjectCBs(const GameTimer &gt);
+};
+
+void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
+  auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+
+  for (auto& e : mAllRenderItems) {
+    if (e->NumFramesDirty > 0) {
+      // The object whose render item this is has changed. Update its
+      // associated data.
+      XMMATRIX world = XMLoadFloat4x4(&e->World);
+      ObjectConstants objConstants;
+      // TODO: why the transpose?
+      XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+      currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+      e->NumFramesDirty--;
+    }
+  }
+}
