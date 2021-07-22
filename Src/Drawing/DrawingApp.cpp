@@ -21,7 +21,7 @@ struct ObjectConstants {
 };
 
 // TODO: Rename to DrawApp.
-class BoxApp : public D3DApp {
+class DrawingApp : public D3DApp {
 private:
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
   // Vertex and index buffers and views.
@@ -54,8 +54,8 @@ private:
   float mRadius = 5.0f;
 
 public:
-  BoxApp(HINSTANCE hInstance) : D3DApp(hInstance) {};
-  ~BoxApp() {};
+  DrawingApp(HINSTANCE hInstance) : D3DApp(hInstance) {};
+  ~DrawingApp() {};
   virtual bool Initialize() override;
 
 private:
@@ -78,7 +78,7 @@ private:
   virtual void OnResize() override;
 };
 
-void BoxApp::BuildShadersAndInputLayout() {
+void DrawingApp::BuildShadersAndInputLayout() {
   // VS and PS are the entrypoints of the vertex and pixel shaders in the same file.
   // vs_5_0 and ps_5_0 are shader profiles of shader model 5.
   mvsByteCode = d3dUtil::CompileShader(L"Src/Drawing/Drawing.hlsl", nullptr, "VS", "vs_5_0");
@@ -96,7 +96,7 @@ void BoxApp::BuildShadersAndInputLayout() {
   };
 }
 
-void BoxApp::BuildBoxGeometry() {
+void DrawingApp::BuildBoxGeometry() {
   std::array<Vertex, 8> vertices = {
     // Is this a cast?
     Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Tomato) }),
@@ -180,7 +180,7 @@ void BoxApp::BuildBoxGeometry() {
   mBoxGeo->DrawArgs["box"] = submesh;
 }
 
-void BoxApp::BuildDescriptorHeaps() {
+void DrawingApp::BuildDescriptorHeaps() {
   // Constant buffer descriptors / views.
   D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
   cbvHeapDesc.NumDescriptors = 1;
@@ -195,7 +195,7 @@ void BoxApp::BuildDescriptorHeaps() {
   ));
 }
 
-void BoxApp::BuildConstantBuffers() {
+void DrawingApp::BuildConstantBuffers() {
   mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
   UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
   D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
@@ -213,7 +213,7 @@ void BoxApp::BuildConstantBuffers() {
   );
 }
 
-void BoxApp::BuildRootSignature() {
+void DrawingApp::BuildRootSignature() {
   CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
   CD3DX12_DESCRIPTOR_RANGE cbvTable;
@@ -252,7 +252,7 @@ void BoxApp::BuildRootSignature() {
   );
 }
 
-void BoxApp::BuildPSO()
+void DrawingApp::BuildPSO()
 {
   D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
   ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -279,7 +279,7 @@ void BoxApp::BuildPSO()
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }
 
-void BoxApp::Draw(const GameTimer& gt) {
+void DrawingApp::Draw(const GameTimer& gt) {
   // Need to make sure that all command lists allocated from here and
   // in the command queue have been executed before resetting the allocator.
   ThrowIfFailed(mDirectCmdListAlloc->Reset());
@@ -339,7 +339,7 @@ void BoxApp::Draw(const GameTimer& gt) {
   FlushCommandQueue();
 }
 
-bool BoxApp::Initialize() {
+bool DrawingApp::Initialize() {
   if (!D3DApp::Initialize()) {
     return false;
   }
@@ -363,7 +363,7 @@ bool BoxApp::Initialize() {
   return true;
 }
 
-void BoxApp::Update(const GameTimer& gt) {
+void DrawingApp::Update(const GameTimer& gt) {
   // Convert the world space spherical coordinates of the camera to cartesian.
   float x = mRadius * sinf(mPhi) * cosf(mTheta);
   float y = mRadius * cosf(mPhi);
@@ -393,7 +393,7 @@ void BoxApp::Update(const GameTimer& gt) {
   mObjectCB->CopyData(0, objConstants);
 }
 
-void BoxApp::OnResize() {
+void DrawingApp::OnResize() {
   D3DApp::OnResize();
 
   XMMATRIX P = XMMatrixPerspectiveFovLH(
@@ -414,7 +414,7 @@ int WINAPI WinMain(
   HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd
 ) {
   try {
-    BoxApp theApp(hInstance);
+    DrawingApp theApp(hInstance);
     if (!theApp.Initialize()) {
       return 0;
     }
