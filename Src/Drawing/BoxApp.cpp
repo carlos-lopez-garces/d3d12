@@ -81,8 +81,8 @@ private:
 void BoxApp::BuildShadersAndInputLayout() {
   // VS and PS are the entrypoints of the vertex and pixel shaders in the same file.
   // vs_5_0 and ps_5_0 are shader profiles of shader model 5.
-  mvsByteCode = d3dUtil::CompileShader(L"Drawing.hlsl", nullptr, "VS", "vs_5_0");
-  mpsByteCode = d3dUtil::CompileShader(L"Drawing.hlsl", nullptr, "PS", "ps_5_0");
+  mvsByteCode = d3dUtil::CompileShader(L"Src/Drawing/Drawing.hlsl", nullptr, "VS", "vs_5_0");
+  mpsByteCode = d3dUtil::CompileShader(L"Src/Drawing/Drawing.hlsl", nullptr, "PS", "ps_5_0");
 
   mInputLayout = {
     // struct Vertex.Pos.
@@ -258,13 +258,11 @@ void BoxApp::BuildPSO()
   ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
   psoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
   psoDesc.pRootSignature = mRootSignature.Get();
-  psoDesc.VS =
-  {
+  psoDesc.VS = {
     reinterpret_cast<BYTE*>(mvsByteCode->GetBufferPointer()),
     mvsByteCode->GetBufferSize()
   };
-  psoDesc.PS =
-  {
+  psoDesc.PS = {
     reinterpret_cast<BYTE*>(mpsByteCode->GetBufferPointer()),
     mpsByteCode->GetBufferSize()
   };
