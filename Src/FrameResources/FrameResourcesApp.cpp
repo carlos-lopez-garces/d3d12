@@ -42,7 +42,12 @@ private:
   std::vector<RenderItem *> mOpaqueRenderItems;
   XMFLOAT4X4 mView = Math::Identity4x4();
   XMFLOAT4X4 mProj = Math::Identity4x4();
+  // Camera position in cartesion coordinates.
   XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
+  // Camera position in spherical coordinates.
+  float mTheta = 1.5f * XM_PI;
+  float mPhi = 0.2f * XM_PI;
+  float mRadius = 15.0f;
   // Data that applies to all draw calls and that doesn't depend on the object
   // being drawn.
   PassConstants mMainPassCB;
@@ -78,9 +83,12 @@ private:
   bool mIsWireframe = false;
 
 private:
+  // Called on every Update() (which is where the application transitions to
+  // the next frame resource). Since the data in the next frame resource is 2 frames
+  // behind the current one, it needs to get up to date.
   void UpdateObjectCBs(const GameTimer &gt);
   // Updates the pass constants (e.g. view and projection matrices) and sets
-  // them in the current frame resource.
+  // them in the current frame resource. See UpdateObjectCBs() too.
   void UpdateMainPassCB(const GameTimer &gt);
   void BuildRootSignature();
   void BuildShapeGeometry();
@@ -94,7 +102,8 @@ private:
   void Draw(const GameTimer &gt);
   // Moves the application on to the next frame resource.
   void Update(const GameTimer &gt);
-  void OnKeyboardInput(const GameTimer& gt);
+  void OnKeyboardInput(const GameTimer &gt);
+  void UpdateCamera(const GameTimer &gt);
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -645,4 +654,16 @@ void FrameResourcesApp::OnKeyboardInput(const GameTimer& gt)
   } else {
     mIsWireframe = false;
   }
+}
+
+void FrameResourcesApp::UpdateCamera(const GameTimer& gt) {
+  mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
+  mEyePos.y = mRadius * cosf(mPhi);
+  mEyePos.z = mRadius * sinf(mPhi) * sinf(mTheta);
+  XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
+  // Always look at the origin of world space.
+  XMVECTOR target = XMVectorZero();
+  XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+  XMStoreFloat4x4(&mView, view);
 }
