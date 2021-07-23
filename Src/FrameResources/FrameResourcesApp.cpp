@@ -46,6 +46,15 @@ private:
   // Data that applies to all draw calls and that doesn't depend on the object
   // being drawn.
   PassConstants mMainPassCB;
+  // There are 2 root signature parameters (of type table), 1 for the constant buffer
+  // of objects (i.e. render items, i.e. drawn instances) and 1 for the constant buffer
+  // of the render pass. The object root signature parameter changes on every DrawIndexedInstanced() 
+  // called made by DrawRenderItems() (which draws all objects, one after the other);
+  // the render pass signature parameter changes on every Draw() call. Every Draw()
+  // call makes one DrawRenderItems() call. The object root signature parameter changes
+  // on every instance draw because the world matrix is different across instances. The
+  // pass root signature parameter only changes once per frame because the view and projection
+  // matrices (and other data) doesn't depend on individual instances.
   ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
   // Constant buffer view heap.
   //
@@ -66,6 +75,7 @@ private:
   // 2 PSOs, 1 for drawing opaque objects, and 1 for drawing wireframes. They differ only
   // in RasterizerState.FillMode: D3D11_FILL_SOLID and D3D12_FILL_MODE_WIREFRAME.
   std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
+  bool mIsWireFrame = false;
 
 private:
   void UpdateObjectCBs(const GameTimer &gt);
@@ -81,6 +91,7 @@ private:
   void BuildDescriptorHeaps();
   void BuildConstantBufferViews();
   void BuildPSOs();
+  void Draw(const GameTimer& gt);
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -525,4 +536,79 @@ void FrameResourcesApp::BuildPSOs() {
   D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePSODesc = opaquePSODesc;
   opaqueWireframePSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePSODesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+}
+
+// Draws all the objects.
+void FrameResourcesApp::Draw(const GameTimer& gt) {
+  // Using a command list that isn't currently in the GPU's command queue allows the
+  // application to get ahead and build/update the resources for the next frame without
+  // waiting for the GPU to execute other command lists.
+  auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+  ThrowIfFailed(cmdListAlloc->Reset());
+
+  if (mIsWireFrame) {
+    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
+  } else {
+    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
+  }
+
+  mCommandList->RSSetViewports(1, &mScreenViewport);
+  mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+  // Don't we need the swap chain to have more than 2 buffers if there are 3 frame
+  // resources? No. The application may prepare 2 frame resources and then block while
+  // the GPU is still using the frame resources of the frame currently being drawn, but
+  // these are frame resources, not render targets. When the application blocks, 3 frame
+  // resources will be present in the GPU command queue; when the GPU gets to the next
+  // frame resource, it will also swap render targets; and when it gets to the last frame
+  // resource, it will swap render targets again. See how the number of frame resources
+  // doesn't have any influence on the swap chain?
+  mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+    CurrentBackBuffer(),
+    D3D12_RESOURCE_STATE_PRESENT,
+    D3D12_RESOURCE_STATE_RENDER_TARGET
+  ));
+
+  mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+  mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+  // Output merger stage.
+  mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+  ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
+  mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+  mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+  // The pass root signature parameter changes once per frame (and not once per drawn
+  // instance) because this data is independent of individual object instances.
+  int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
+  auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+  passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
+  mCommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+
+  // Use the current frame resource's command list. The application guarantees that
+  // this command list is not currently in the command queue. This allows the application
+  // to get ahead and build/update the resources for the next frame(s).
+  DrawRenderItems(mCommandList.Get(), mOpaqueRenderItems);
+
+  // Prepare to present the drawn back buffer to the screen.
+  mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+    CurrentBackBuffer(),
+    D3D12_RESOURCE_STATE_RENDER_TARGET,
+    D3D12_RESOURCE_STATE_PRESENT
+  ));
+
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+  // Present the drawn back buffer to the screen.
+  ThrowIfFailed(mSwapChain->Present(0, 0));
+  mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
+
+  // Add the fence to the command queue. The application doesn't block here; it
+  // blocks in Update().
+  mCurrFrameResource->Fence = ++mCurrentFence;
+  mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
