@@ -75,7 +75,7 @@ private:
   // 2 PSOs, 1 for drawing opaque objects, and 1 for drawing wireframes. They differ only
   // in RasterizerState.FillMode: D3D11_FILL_SOLID and D3D12_FILL_MODE_WIREFRAME.
   std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
-  bool mIsWireFrame = false;
+  bool mIsWireframe = false;
 
 private:
   void UpdateObjectCBs(const GameTimer &gt);
@@ -91,7 +91,10 @@ private:
   void BuildDescriptorHeaps();
   void BuildConstantBufferViews();
   void BuildPSOs();
-  void Draw(const GameTimer& gt);
+  void Draw(const GameTimer &gt);
+  // Moves the application on to the next frame resource.
+  void Update(const GameTimer &gt);
+  void OnKeyboardInput(const GameTimer& gt);
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -546,7 +549,7 @@ void FrameResourcesApp::Draw(const GameTimer& gt) {
   auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
   ThrowIfFailed(cmdListAlloc->Reset());
 
-  if (mIsWireFrame) {
+  if (mIsWireframe) {
     ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
   } else {
     ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
@@ -608,7 +611,38 @@ void FrameResourcesApp::Draw(const GameTimer& gt) {
   mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
 
   // Add the fence to the command queue. The application doesn't block here; it
-  // blocks in Update().
+  // blocks in Update(), where the application transitions to the next frame resource.
   mCurrFrameResource->Fence = ++mCurrentFence;
   mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+}
+
+// Moves the application on to the next frame resource.
+void FrameResourcesApp::Update(const GameTimer& gt) {
+  OnKeyboardInput(gt);
+  UpdateCamera(gt);
+  
+  mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
+  mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+
+  if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
+    // The frame resource we moved on to is still in the GPU command queue (it
+    // follows that the other 2 frame resources are also in the queue, but behind it).
+    // Block until the frame is completed.
+    HANDLE eventHandle = CreateEventExW(nullptr, nullptr, false, EVENT_ALL_ACCESS);
+    ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
+    WaitForSingleObject(eventHandle, INFINITE);
+    CloseHandle(eventHandle);
+  }
+
+  UpdateObjectCBs(gt);
+  UpdateMainPassCB(gt);
+}
+
+void FrameResourcesApp::OnKeyboardInput(const GameTimer& gt)
+{
+  if (GetAsyncKeyState('1') & 0x8000) {
+    mIsWireframe = true;
+  } else {
+    mIsWireframe = false;
+  }
 }
