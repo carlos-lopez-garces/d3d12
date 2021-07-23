@@ -63,6 +63,9 @@ private:
   // view heap. There are actually 3 views for the render pass, 1 per frame resource.
   // The first one of them is at this offset; the rest follow the first one.
   UINT mPassCbvOffset = 0;
+  // 2 PSOs, 1 for drawing opaque objects, and 1 for drawing wireframes. They differ only
+  // in RasterizerState.FillMode: D3D11_FILL_SOLID and D3D12_FILL_MODE_WIREFRAME.
+  std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
 private:
   void UpdateObjectCBs(const GameTimer &gt);
@@ -77,6 +80,7 @@ private:
   void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<RenderItem *> &renderItems);
   void BuildDescriptorHeaps();
   void BuildConstantBufferViews();
+  void BuildPSOs();
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -487,4 +491,38 @@ void FrameResourcesApp::BuildConstantBufferViews() {
     cbvDesc.SizeInBytes = passCBByteSize;
     md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
   }
+}
+
+void FrameResourcesApp::BuildPSOs() {
+  // 2 PSOs, 1 for drawing opaque objects, and 1 for drawing wireframes.
+  // They differ only in RasterizerState.FillMode: D3D11_FILL_SOLID and D3D12_FILL_MODE_WIREFRAME.
+
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePSODesc;
+  ZeroMemory(&opaquePSODesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+  opaquePSODesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+  opaquePSODesc.pRootSignature = mRootSignature.Get();
+  opaquePSODesc.VS = {
+    reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer(),
+    mShaders["standardVS"]->GetBufferSize())
+  };
+  opaquePSODesc.PS = {
+    reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer(),
+    mShaders["opaquePS"]->GetBufferSize())
+  };
+  opaquePSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+  opaquePSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+  opaquePSODesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+  opaquePSODesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  opaquePSODesc.SampleMask = UINT_MAX;
+  opaquePSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  opaquePSODesc.NumRenderTargets = 1;
+  opaquePSODesc.RTVFormats[0] = mBackBufferFormat;
+  opaquePSODesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+  opaquePSODesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+  opaquePSODesc.DSVFormat = mDepthStencilFormat;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePSODesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePSODesc = opaquePSODesc;
+  opaqueWireframePSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePSODesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
