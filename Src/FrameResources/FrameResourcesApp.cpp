@@ -36,6 +36,7 @@ private:
   // This app maintains 3 frame resources.
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
   FrameResource* mCurrFrameResource = nullptr;
+  int mCurrFrameResourceIndex = 0;
   std::vector<std::unique_ptr<RenderItem>> mAllRenderItems;
   // TODO: ?
   std::vector<RenderItem *> mOpaqueRenderItems;
@@ -61,6 +62,7 @@ private:
   void BuildShadersAndInputLayout();
   void BuildFrameResources();
   void BuildRenderItems();
+  void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<RenderItem *> &renderItems);
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -359,5 +361,48 @@ void FrameResourcesApp::BuildRenderItems() {
 
   for (auto& renderItem : mAllRenderItems) {
     mOpaqueRenderItems.push_back(renderItem.get());
+  }
+}
+
+// The application uses 1 command list per frame resource. The input cmdList
+// is allocated from the corresponding frame resource's command list allocator.
+//
+// Member variable mCurrFrameResourceIndex tells which of the 3 frame resources
+// this is.
+void FrameResourcesApp::DrawRenderItems(
+  ID3D12GraphicsCommandList* cmdList,
+  const std::vector<RenderItem*>& renderItems
+) {
+  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+  auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+
+  for (size_t i = 0; i < renderItems.size(); ++i) {
+    auto renderItem = renderItems[i];
+    cmdList->IASetVertexBuffers(0, 1, &renderItem->Geo->VertexBufferView());
+    cmdList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+    cmdList->IASetPrimitiveTopology(renderItem->PrimitiveType);
+
+    // The index into the constant buffer view heap where this render item's descriptor
+    // is.
+    UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRenderItems.size() + renderItem->ObjCBIndex;
+    // CD3DX12_GPU_DESCRIPTOR_HANDLE is a struct. 
+    auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+    // Sets the internal offset of CD3DX12_GPU_DESCRIPTOR_HANDLE to the specified location,
+    // where this render item's descriptor is.
+    cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
+
+    // 1st root parameter is this render item's constant buffer descriptor.
+    cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+    
+    // This instance's world matrix is in the constant buffer that was just set in the root
+    // signature.
+    cmdList->DrawIndexedInstanced(
+      renderItem->IndexCount,
+      // Draw 1 instance of this geometry (vertices + indices).
+      1,
+      renderItem->StartIndexLocation,
+      renderItem->BaseVertexLocation,
+      0
+    );
   }
 }
