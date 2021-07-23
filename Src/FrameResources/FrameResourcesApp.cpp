@@ -47,10 +47,18 @@ private:
   // being drawn.
   PassConstants mMainPassCB;
   ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+  // Constant buffer view heap. Each drawn instance has a render item; each render
+  // item has a constant buffer in each of the 3 frame resources. All of these views
+  // come from this heap.
+  ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
   // 1 vertex and 1 index buffer for a number of different geometries.
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
   std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+  // Location of the constant buffer view of the render pass in the constant buffer
+  // view heap. There are actually 3 views for the render pass, 1 per frame resource.
+  // The first one of them is at this offset; the rest follow the first one.
+  UINT mPassCbvOffset = 0;
 
 private:
   void UpdateObjectCBs(const GameTimer &gt);
@@ -63,6 +71,7 @@ private:
   void BuildFrameResources();
   void BuildRenderItems();
   void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<RenderItem *> &renderItems);
+  void BuildDescriptorHeaps();
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -405,4 +414,27 @@ void FrameResourcesApp::DrawRenderItems(
       0
     );
   }
+}
+
+void FrameResourcesApp::BuildDescriptorHeaps() {
+  // One render item per drawn instance.
+  UINT objCount = (UINT)mOpaqueRenderItems.size();
+
+  // One descriptor per render item per frame resource.
+  // An additional per frame resource for the render pass.
+  UINT numDescriptors = (objCount + 1) * gNumFrameResources;
+
+  // Record the location of the first render pass constant buffer view.
+  // The other render pass views follow the first one.
+  mPassCbvOffset = objCount * gNumFrameResources;
+
+  D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+  cbvHeapDesc.NumDescriptors = numDescriptors;
+  cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  // Makes the descriptors accesible to shaders.
+  cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  cbvHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)
+  ));
 }
