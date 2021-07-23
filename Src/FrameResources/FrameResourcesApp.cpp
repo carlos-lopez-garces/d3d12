@@ -44,6 +44,8 @@ private:
   ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
   // 1 vertex and 1 index buffer for a number of different geometries.
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+  std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+  std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
 private:
   void UpdateObjectCBs(const GameTimer &gt);
@@ -52,6 +54,7 @@ private:
   void UpdateMainPassCB(const GameTimer &gt);
   void BuildRootSignature();
   void BuildShapeGeometry();
+  void BuildShadersAndInputLayout();
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -246,4 +249,15 @@ void FrameResourcesApp::BuildShapeGeometry() {
   geo->DrawArgs["cylinder"] = cylinderSubmesh;
 
   mGeometries[geo->Name] = std::move(geo);
+}
+
+void FrameResourcesApp::BuildShadersAndInputLayout() {
+  mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/FrameResources/FrameResources.hlsl", nullptr, "VS", "vs_5_1");
+  mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/FrameResources/FrameResources.hlsl", nullptr, "PS", "ps_5_1");
+
+  mInputLayout = {
+    // 0 is the offset into the 
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+  };
 }
