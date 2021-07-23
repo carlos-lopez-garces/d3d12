@@ -47,8 +47,12 @@ private:
   // being drawn.
   PassConstants mMainPassCB;
   ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-  // Constant buffer view heap. Each drawn instance has a render item; each render
-  // item has a constant buffer in each of the 3 frame resources. All of these views
+  // Constant buffer view heap.
+  //
+  // There are 6 constant buffer resources, 2 per frame resource, 1 for objects and 
+  // one for the render pass. Each buffer resource is referenced by multiple constant
+  // buffer views, one per render item. Each drawn instance has a render item; each render
+  // item has a constant buffer view in each of the frame resources. All of these views
   // come from this heap.
   ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
   // 1 vertex and 1 index buffer for a number of different geometries.
@@ -72,6 +76,7 @@ private:
   void BuildRenderItems();
   void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<RenderItem *> &renderItems);
   void BuildDescriptorHeaps();
+  void BuildConstantBufferViews();
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -437,4 +442,49 @@ void FrameResourcesApp::BuildDescriptorHeaps() {
   ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
     &cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)
   ));
+}
+
+void FrameResourcesApp::BuildConstantBufferViews() {
+  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+  UINT objCount = (UINT)mOpaqueRenderItems.size();
+
+  // There are 6 constant buffers, 2 per frame resource, 1 for object and 1 for the render pass.
+  
+  // Each constant buffer for objects (3 in total) stores data for all of the render items
+  // (i.e. drawn instances). Constant buffer views for each render item are created for each
+  // constant buffer.
+  for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex) {
+    auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
+
+    // Create a view for each render item for this constant buffer.
+    for (UINT i = 0; i < objCount; ++i) {
+      D3D12_GPU_VIRTUAL_ADDRESS cbAddress = objectCB->GetGPUVirtualAddress();
+      cbAddress += i * objCBByteSize;
+
+      int heapIndex = frameIndex * objCount + i;
+      auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+      handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
+
+      D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+      cbvDesc.BufferLocation = cbAddress;
+      cbvDesc.SizeInBytes = objCBByteSize;
+
+      md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+    }
+  }
+
+  UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+
+  // The last 3 views (1 per frame resource) are for the render pass.
+  for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex) {
+    auto passCB = mFrameResources[frameIndex]->PassCB->Resource();
+    D3D12_GPU_VIRTUAL_ADDRESS cbAddress = passCB->GetGPUVirtualAddress();
+    int heapIndex = mPassCbvOffset + frameIndex;
+    auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+    handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
+    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+    cbvDesc.BufferLocation = cbAddress;
+    cbvDesc.SizeInBytes = passCBByteSize;
+    md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+  }
 }
