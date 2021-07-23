@@ -1,6 +1,7 @@
 #include "../Common/d3dApp.h"
 #include "../Common/Math.h"
 #include "../Common/UploadBuffer.h"
+#include "../Common/GeometryGenerator.h"
 #include "FrameResource.h"
 
 using Microsoft::WRL::ComPtr;
@@ -41,6 +42,8 @@ private:
   // being drawn.
   PassConstants mMainPassCB;
   ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+  // 1 vertex and 1 index buffer for a number of different geometries.
+  std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 
 private:
   void UpdateObjectCBs(const GameTimer &gt);
@@ -48,6 +51,7 @@ private:
   // them in the current frame resource.
   void UpdateMainPassCB(const GameTimer &gt);
   void BuildRootSignature();
+  void BuildShapeGeometry();
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -134,4 +138,112 @@ void FrameResourcesApp::BuildRootSignature() {
     serializedRootSig->GetBufferSize(),
     IID_PPV_ARGS(mRootSignature.GetAddressOf())
   ));
+}
+
+void FrameResourcesApp::BuildShapeGeometry() {
+  GeometryGenerator geoGen;
+  GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);
+  GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+  GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+  GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
+
+  // Vertex buffer offsets of each object.
+  UINT boxVertexOffset = 0;
+  UINT gridVertexOffset = (UINT)box.Vertices.size();
+  UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
+  UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
+
+  // Index buffer offsets of each object.
+  UINT boxIndexOffset = 0;
+  UINT gridIndexOffset = (UINT)box.Indices32.size();
+  UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
+  UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
+
+  // Location of box in vertex and index buffers.
+  SubmeshGeometry boxSubmesh;
+  boxSubmesh.IndexCount = (UINT)box.Indices32.size();
+  boxSubmesh.StartIndexLocation = boxIndexOffset;
+  boxSubmesh.BaseVertexLocation = boxVertexOffset;
+
+  // Location of grid in vertex and index buffers.
+  SubmeshGeometry gridSubmesh;
+  gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
+  gridSubmesh.StartIndexLocation = gridIndexOffset;
+  gridSubmesh.BaseVertexLocation = gridVertexOffset;
+
+  // Location of sphere in vertex and index buffers.
+  SubmeshGeometry sphereSubmesh;
+  sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
+  sphereSubmesh.StartIndexLocation = sphereIndexOffset;
+  sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
+
+  // Location of cylinder in vertex and index buffers.
+  SubmeshGeometry cylinderSubmesh;
+  cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
+  cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
+  cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
+
+  // Pack the vertices of all the geometries in a single vertex buffer.
+  auto totalVertexCount = box.Vertices.size() + grid.Vertices.size() + sphere.Vertices.size() + cylinder.Vertices.size();
+  std::vector<Vertex> vertices(totalVertexCount);
+
+  UINT k = 0;
+  for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
+    vertices[k].Pos = box.Vertices[i].Position;
+    vertices[k].Color = XMFLOAT4(DirectX::Colors::DarkGreen);
+  }
+
+  for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
+    vertices[k].Pos = grid.Vertices[i].Position;
+    vertices[k].Color = XMFLOAT4(DirectX::Colors::ForestGreen);
+  }
+
+  for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k) {
+    vertices[k].Pos = sphere.Vertices[i].Position;
+    vertices[k].Color = XMFLOAT4(DirectX::Colors::Crimson);
+  }
+
+  for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k) {
+    vertices[k].Pos = cylinder.Vertices[i].Position;
+    vertices[k].Color = XMFLOAT4(DirectX::Colors::SteelBlue);
+  }
+
+  std::vector<std::uint16_t> indices;
+  indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
+  indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
+  indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
+  indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+
+  // Vertex and index buffers' total byte size.
+  const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+  const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+  auto geo = std::make_unique<MeshGeometry>();
+  geo->Name = "shapeGeo";
+
+  // Create CPU-side buffers.
+  ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+  CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+  ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+  CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+  // Create GPU-side buffers.
+  geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+    md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader
+  );
+  geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+    md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader
+  );
+
+  geo->VertexByteStride = sizeof(Vertex);
+  geo->VertexBufferByteSize = vbByteSize;
+  geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+  geo->IndexBufferByteSize = ibByteSize;
+
+  geo->DrawArgs["box"] = boxSubmesh;
+  geo->DrawArgs["grid"] = gridSubmesh;
+  geo->DrawArgs["sphere"] = sphereSubmesh;
+  geo->DrawArgs["cylinder"] = cylinderSubmesh;
+
+  mGeometries[geo->Name] = std::move(geo);
 }
