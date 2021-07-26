@@ -108,11 +108,12 @@ private:
   void BuildDescriptorHeaps();
   void BuildConstantBufferViews();
   void BuildPSOs();
-  void Draw(const GameTimer &gt);
+  virtual void Draw(const GameTimer &gt) override;
   // Moves the application on to the next frame resource.
-  void Update(const GameTimer &gt);
+  virtual void Update(const GameTimer &gt) override;
   void OnKeyboardInput(const GameTimer &gt);
   void UpdateCamera(const GameTimer &gt);
+  virtual void OnResize() override;
 };
 
 void FrameResourcesApp::UpdateObjectCBs(const GameTimer& gt) {
@@ -701,6 +702,12 @@ bool FrameResourcesApp::Initialize() {
   FlushCommandQueue();
 
   return true;
+}
+
+void FrameResourcesApp::OnResize() {
+  D3DApp::OnResize();
+  XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * Math::Pi, AspectRatio(), 1.0f, 1000.0f);
+  XMStoreFloat4x4(&mProj, P);
 }
 
 int WINAPI WinMain(
