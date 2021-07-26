@@ -82,6 +82,15 @@ private:
   std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
   bool mIsWireframe = false;
 
+public:
+  FrameResourcesApp(HINSTANCE hInstance) : D3DApp(hInstance) {}
+  ~FrameResourcesApp() {
+    if (md3dDevice != nullptr) {
+      FlushCommandQueue();
+    }
+  }
+  bool Initialize();
+
 private:
   // Called on every Update() (which is where the application transitions to
   // the next frame resource). Since the data in the next frame resource is 2 frames
@@ -525,12 +534,12 @@ void FrameResourcesApp::BuildPSOs() {
   opaquePSODesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
   opaquePSODesc.pRootSignature = mRootSignature.Get();
   opaquePSODesc.VS = {
-    reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer(),
-    mShaders["standardVS"]->GetBufferSize())
+    reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+    mShaders["standardVS"]->GetBufferSize()
   };
   opaquePSODesc.PS = {
-    reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer(),
-    mShaders["opaquePS"]->GetBufferSize())
+    reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+    mShaders["opaquePS"]->GetBufferSize()
   };
   opaquePSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   opaquePSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
@@ -666,4 +675,51 @@ void FrameResourcesApp::UpdateCamera(const GameTimer& gt) {
   XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
   XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
   XMStoreFloat4x4(&mView, view);
+}
+
+bool FrameResourcesApp::Initialize() {
+  if (!D3DApp::Initialize()) {
+    return false;
+  }
+
+  ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+  BuildRootSignature();
+  BuildShadersAndInputLayout();
+  BuildShapeGeometry();
+  BuildRenderItems();
+  BuildFrameResources();
+  BuildDescriptorHeaps();
+  BuildConstantBufferViews();
+  BuildPSOs();
+
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+  // Block.
+  FlushCommandQueue();
+
+  return true;
+}
+
+int WINAPI WinMain(
+  HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd
+) {
+#if defined(DEBUG) | defined(_DEBUG)
+  _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+  try {
+    FrameResourcesApp theApp(hInstance);
+    if (!theApp.Initialize()) {
+      return 0;
+    }
+
+    return theApp.Run();
+  }
+  catch (DxException& e) {
+    MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+    return 0;
+  }
 }
