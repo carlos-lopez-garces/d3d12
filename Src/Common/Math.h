@@ -7,5 +7,7 @@
 namespace Math {
 	static const float Pi = 3.1415926535f;
 
-	DirectX::XMFLOAT4X4 Identity4x4();
+	static DirectX::XMFLOAT4X4 Identity4x4();
+
+	static DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX M);
 }
