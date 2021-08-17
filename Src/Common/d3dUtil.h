@@ -21,6 +21,10 @@
 #include <cassert>
 #include "d3dx12.h"
 
+// const variables have internal linkage by default; change it to external.
+// Application source code that includes this header will set its value.
+extern const int gNumFrameResources;
+
 #ifndef ThrowIfFailed
 #define ThrowIfFailed(x)                                              \
 {                                                                     \
@@ -140,4 +144,43 @@ struct MeshGeometry {
     VertexBufferUploader = nullptr;
     IndexBufferUploader = nullptr;
   }
+};
+
+// A Material's description is passed to shaders in constant buffers.
+struct Material {
+  std::string Name;
+  
+  // Materials are passed to shaders in constant buffers; this index is the location
+  // of this material in the materials constant buffer.
+  int MatCBIndex = -1;
+
+  // The diffuse albedo specifies the fraction of each of the light's color 
+  // components that gets reflected; the rest is absorbed.
+  DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+  // Specular color. The Schlick approximation of the Fresnel equations interpolates
+  // linearly between this color and white.
+  DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
+
+  // The microfacet distribution function of the material has an exponent m:
+  // rho(thetaH) = cos(thetaH)^m, where thetaH is the angle between the surface's
+  // macro normal and the microfacet's normal. The larger m is, the larger rho(thetaH)
+  // will be for smaller angles thetaH, creating a bias of microfacet normals towards
+  // the macro normal, and narrowing the specular lobe. The parameter m effectively
+  // controls the spread of the specular lobe.
+  //
+  // This roughness member is used to compute the parameter m.
+  // [0,1], where 0 is perfectly smooth and 1 is the roughest possible.
+  float Roughness = 0.25f;
+
+  // This Material will be part of a FrameResource in a constant buffer. If the application
+  // modifies it, it has to be updated on the constant buffer of all the frame resources.
+  int NumFramesDirty = gNumFrameResources;
+};
+
+// Subset of Material to be passed to shaders in constant buffers.
+struct MaterialConstants {
+  DirectX::XMFLOAT4 DiffuseAlbedo = {1.0f, 1.0f, 1.0f, 1.0f};
+  DirectX::XMFLOAT3 FresnelR0 = {0.01f, 0.01f, 0.01f};
+  float Roughness = 0.25f;
 };
