@@ -27,12 +27,27 @@ struct RenderItem {
   int BaseVertexLocation = 0;
 };
 
+// This app only needs 1 render layer because all the render items can be drawn with the same
+// PSO.
+enum class RenderLayer : int {
+  Opaque = 0,
+  Count
+};
+
 class LightingAndMaterialsApp : D3DApp {
 private:
+  std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
   FrameResource *mCurrFrameResource = nullptr;
   int mCurrFrameResourceIndex = 0;
+
+  // All render items.
+  std::vector<std::unique_ptr<RenderItem>> mAllRenderItems;
+  // Render items organized by layer, because they might need different PSOs
+  // (although this app only needs one).
+  std::vector<RenderItem*> mRenderItemLayer[(int) RenderLayer::Count];
+  RenderItem* mWavesRenderItem = nullptr;
 
 public:
 
@@ -40,6 +55,7 @@ private:
   void BuildMaterials();
   void UpdateMaterialCBs(const GameTimer &gt);
   void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<RenderItem *> &ritems);
+  void BuildRenderItems();
 };
 
 void LightingAndMaterialsApp::BuildMaterials() {
@@ -103,4 +119,36 @@ void LightingAndMaterialsApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList
     cmdList->SetGraphicsRootConstantBufferView(1, matCBAddress);
     cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
   }
+}
+
+void LightingAndMaterialsApp::BuildRenderItems()
+{
+  auto wavesRitem = std::make_unique<RenderItem>();
+  wavesRitem->World = Math::Identity4x4();
+  wavesRitem->ObjCBIndex = 0;
+  wavesRitem->Mat = mMaterials["water"].get();
+  wavesRitem->Geo = mGeometries["waterGeo"].get();
+  wavesRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  wavesRitem->IndexCount = wavesRitem->Geo->DrawArgs["grid"].IndexCount;
+  wavesRitem->StartIndexLocation = wavesRitem->Geo->DrawArgs["grid"].StartIndexLocation;
+  wavesRitem->BaseVertexLocation = wavesRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+  mWavesRenderItem = wavesRitem.get();
+
+  mRenderItemLayer[(int)RenderLayer::Opaque].push_back(wavesRitem.get());
+
+  auto gridRitem = std::make_unique<RenderItem>();
+  gridRitem->World = Math::Identity4x4();
+  gridRitem->ObjCBIndex = 1;
+  gridRitem->Mat = mMaterials["grass"].get();
+  gridRitem->Geo = mGeometries["landGeo"].get();
+  gridRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
+  gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
+  gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+  mRenderItemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
+
+  mAllRenderItems.push_back(std::move(wavesRitem));
+  mAllRenderItems.push_back(std::move(gridRitem));
 }
