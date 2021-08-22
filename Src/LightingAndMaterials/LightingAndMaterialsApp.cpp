@@ -1,8 +1,8 @@
-#include <DirectXMath.h>
 #include "../Common/d3dApp.h"
-#include "../Common/Math.h"
-#include "../Common/d3dUtil.h"
 #include "FrameResource.h"
+#include < DirectXMath.h >
+
+using namespace DirectX;
 
 const int gNumFrameResources = 3;
 
@@ -48,6 +48,15 @@ private:
   // (although this app only needs one).
   std::vector<RenderItem*> mRenderItemLayer[(int) RenderLayer::Count];
   RenderItem* mWavesRenderItem = nullptr;
+  std::unique_ptr<Waves> mWaves;
+
+  // Eye.
+  XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
+  XMFLOAT4X4 mView = Math::Identity4x4();
+  XMFLOAT4X4 mProj = Math::Identity4x4();
+  float mTheta = 1.5 * XM_PI;
+  float mPhi = XM_PIDIV2 - 0.1f;
+  float mRadius = 50.0f;
 
 public:
 
@@ -56,6 +65,9 @@ private:
   void UpdateMaterialCBs(const GameTimer &gt);
   void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<RenderItem *> &ritems);
   void BuildRenderItems();
+  void UpdateObjectCBs(const GameTimer &gt);
+  void BuildFrameResources();
+  void UpdateCamera(const GameTimer &gt);
 };
 
 void LightingAndMaterialsApp::BuildMaterials() {
@@ -86,7 +98,7 @@ void LightingAndMaterialsApp::UpdateMaterialCBs(const GameTimer& gt) {
     if (mat->NumFramesDirty > 0) {
       // The application changed the material. Update the copies stored in constant
       // buffers of each of the frame resources.
-      MaterialContants matConstants;
+      MaterialConstants matConstants;
       matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
       matConstants.FresnelR0 = mat->FresnelR0;
       matConstants.Roughness = mat->Roughness;
@@ -151,4 +163,52 @@ void LightingAndMaterialsApp::BuildRenderItems()
 
   mAllRenderItems.push_back(std::move(wavesRitem));
   mAllRenderItems.push_back(std::move(gridRitem));
+}
+
+void LightingAndMaterialsApp::UpdateObjectCBs(const GameTimer& gt) {
+  auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+  // Update in the constant buffers the world matrices of objects that changed.
+  for (auto& renderItem : mAllRenderItems) {
+    if (renderItem->NumFramesDirty > 0) {
+      XMMATRIX world = XMLoadFloat4x4(&renderItem->World);
+      ObjectConstants objConstants;
+      XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+      // Copy to upload buffer for eventual transfer to the constant buffer.
+      currObjectCB->CopyData(renderItem->ObjCBIndex, objConstants);
+      renderItem->NumFramesDirty--;
+    }
+  }
+}
+
+void LightingAndMaterialsApp::BuildFrameResources() {
+  for (int i = 0; i < gNumFrameResources; ++i) {
+    mFrameResources.push_back(std::make_unique<FrameResource>(
+      md3dDevice.Get(),
+      // 1 pass.
+      1,
+      (UINT) mAllRenderItems.size(),
+      (UINT) mMaterials.size(),
+      mWaves->VertexCount()
+    ));
+  }
+}
+
+void LightingAndMaterialsApp::UpdateCamera(const GameTimer& gt) {
+  // Rho is spherical radius.
+  // Polar radius r = rho * sin(phi)
+  // x = r * cos(theta)
+  // y = r * sin(theta)
+  mEyePos.x = (mRadius * sinf(mPhi)) * cosf(mTheta);
+  mEyePos.y = (mRadius * sinf(mPhi)) * sinf(mTheta);
+  mEyePos.z = mRadius * cosf(mPhi);
+
+  // Orthonormal basis of view space.
+  XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
+  // Look at the world space origin.
+  XMVECTOR target = XMVectorZero();
+  XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+  // View matrix.
+  XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+  XMStoreFloat4x4(&mView, view);
 }
