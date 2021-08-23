@@ -42,6 +42,7 @@ private:
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
   FrameResource *mCurrFrameResource = nullptr;
   int mCurrFrameResourceIndex = 0;
+  PassConstants mMainPassCB;
 
   // All render items.
   std::vector<std::unique_ptr<RenderItem>> mAllRenderItems;
@@ -78,6 +79,9 @@ private:
   void BuildRootSignature();
   void BuildShadersAndInputLayout();
   void BuildPSOs();
+  virtual void OnResize() override;
+  void Draw(const GameTimer& gt);
+  void UpdateMainPassCB(const GameTimer &gt);
 };
 
 void LightingAndMaterialsApp::BuildMaterials() {
@@ -231,6 +235,7 @@ void LightingAndMaterialsApp::BuildRootSignature() {
   // Argument is shader register number.
   slotRootParameter[0].InitAsConstantBufferView(0);
   slotRootParameter[1].InitAsConstantBufferView(1);
+  // For pass constant buffer; see Draw().
   slotRootParameter[2].InitAsConstantBufferView(2);
 
   CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
@@ -300,5 +305,97 @@ void LightingAndMaterialsApp::BuildPSOs() {
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
     &opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])
   ));
+}
 
+void LightingAndMaterialsApp::OnResize() {
+  D3DApp::OnResize();
+  // LH stands for left-handed.
+  XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * Math::Pi, AspectRatio(), 1.0f, 1000.0f);
+  XMStoreFloat4x4(&mProj, P);
+}
+
+void LightingAndMaterialsApp::Draw(const GameTimer &gt) {
+  // The resources of the current frame resource, including the command list, are no longer
+  // in the command queue and can be reclaimed and reused by the app.
+  auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+  ThrowIfFailed(cmdListAlloc->Reset());
+  ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
+
+  mCommandList->RSSetViewports(1, &mScreenViewport);
+  mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+  mCommandList->ResourceBarrier(
+    1,
+    &CD3DX12_RESOURCE_BARRIER::Transition(
+      CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET
+    )
+  );
+
+  mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+  mCommandList->ClearDepthStencilView(
+    DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr
+  );
+  mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+  
+  mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+  auto passCB = mCurrFrameResource->PassCB->Resource();
+  // 2 is the root parameter index of the pass constant buffer.
+  mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+
+  // Use the current frame resource's command list for drawing objects.
+  DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int) RenderLayer::Opaque]);
+
+  // Drawing commands with the current back buffer as render target have been queued already.
+  // Insert command to present it to the screen.
+  mCommandList->ResourceBarrier(
+    1,
+    &CD3DX12_RESOURCE_BARRIER::Transition(
+      CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
+    )
+  );
+
+  ThrowIfFailed(mCommandList->Close());
+
+  ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+  ThrowIfFailed(mSwapChain->Present(0, 0));
+  mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
+  mCurrFrameResource->Fence = ++mCurrentFence;
+  mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+}
+
+void LightingAndMaterialsApp::UpdateMainPassCB(const GameTimer& gt) {
+  XMMATRIX view = XMLoadFloat4x4(&mView);
+  XMMATRIX proj = XMLoadFloat4x4(&mProj);
+  XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+  XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+  XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+  XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+
+  XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+  XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+  XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+  XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+  XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+  XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+  mMainPassCB.EyePosW = mEyePos;
+  mMainPassCB.RenderTargetSize = XMFLOAT2((float) mClientWidth, (float) mClientHeight);
+  mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.f/mClientWidth, 1.f/mClientHeight);
+  mMainPassCB.NearZ = 1.0f;
+  mMainPassCB.FarZ = 1000.0f;
+  mMainPassCB.TotalTime = gt.TotalTime();
+  mMainPassCB.DeltaTime = gt.DeltaTime();
+
+  // Lighting.
+  mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+  // The light vector points from the origin to the sun light source.
+  XMVECTOR lightDir = -Math::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
+  XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
+  mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
+
+  // Copy updated main pass data to upload buffer for eventual transfer to contant buffer.
+  auto currPassCB = mCurrFrameResource->PassCB.get();
+  currPassCB->CopyData(0, mMainPassCB);
 }
