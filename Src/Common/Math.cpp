@@ -18,3 +18,13 @@ DirectX::XMMATRIX Math::InverseTranspose(DirectX::CXMMATRIX M) {
 	DirectX::XMVECTOR determinant = DirectX::XMMatrixDeterminant(A);
 	return DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(&determinant, A));
 }
+
+DirectX::XMVECTOR Math::SphericalToCartesian(float rho, float theta, float phi) {
+	// Polar radius.
+	float r = rho * sinf(phi);
+	float x = r * cosf(theta);
+	// The y-axis points up in this coordinate system.
+	float y = rho * cosf(phi);
+	float z = r * sinf(theta);
+	return DirectX::XMVectorSet(x, y, z, 1.0f);
+}

@@ -10,4 +10,6 @@ namespace Math {
 	static DirectX::XMFLOAT4X4 Identity4x4();
 
 	static DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX M);
+
+	static DirectX::XMVECTOR SphericalToCartesian(float rho, float theta, float phi);
 }
