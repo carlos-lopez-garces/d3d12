@@ -3,6 +3,7 @@
 #include < DirectXMath.h >
 
 using namespace DirectX;
+using Microsoft::WRL::ComPtr;
 
 const int gNumFrameResources = 3;
 
@@ -34,7 +35,7 @@ enum class RenderLayer : int {
   Count
 };
 
-class LightingAndMaterialsApp : D3DApp {
+class LightingAndMaterialsApp : public D3DApp {
 private:
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
@@ -58,6 +59,12 @@ private:
   float mPhi = XM_PIDIV2 - 0.1f;
   float mRadius = 50.0f;
 
+  // Pipeline configuration.
+  ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+  std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+  std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
+  std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+
 public:
 
 private:
@@ -68,6 +75,9 @@ private:
   void UpdateObjectCBs(const GameTimer &gt);
   void BuildFrameResources();
   void UpdateCamera(const GameTimer &gt);
+  void BuildRootSignature();
+  void BuildShadersAndInputLayout();
+  void BuildPSOs();
 };
 
 void LightingAndMaterialsApp::BuildMaterials() {
@@ -211,4 +221,84 @@ void LightingAndMaterialsApp::UpdateCamera(const GameTimer& gt) {
   // View matrix.
   XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
   XMStoreFloat4x4(&mView, view);
+}
+
+// The root signature is an array of root parameters that describe the resources that the
+// application will bind to the pipeline and that shaders will access on the next and 
+// subsequent draw calls.
+void LightingAndMaterialsApp::BuildRootSignature() {
+  CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+  // Argument is shader register number.
+  slotRootParameter[0].InitAsConstantBufferView(0);
+  slotRootParameter[1].InitAsConstantBufferView(1);
+  slotRootParameter[2].InitAsConstantBufferView(2);
+
+  CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
+    // 3 root parameters.
+    3,
+    slotRootParameter,
+    0,
+    nullptr,
+    D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+  );
+
+  ComPtr<ID3DBlob> serializedRootSig = nullptr;
+  ComPtr<ID3DBlob> errorBlob = nullptr;
+  HRESULT hr = D3D12SerializeRootSignature(
+    &rootSigDesc,
+    D3D_ROOT_SIGNATURE_VERSION_1,
+    serializedRootSig.GetAddressOf(),
+    errorBlob.GetAddressOf()
+  );
+  if (errorBlob != nullptr) {
+    ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+  }
+  ThrowIfFailed(hr);
+
+  ThrowIfFailed(md3dDevice->CreateRootSignature(
+    0,
+    serializedRootSig->GetBufferPointer(),
+    serializedRootSig->GetBufferSize(),
+    IID_PPV_ARGS(mRootSignature.GetAddressOf())
+  ));
+}
+
+void LightingAndMaterialsApp::BuildShadersAndInputLayout() {
+  mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/LightingAndMaterials/LightingAndMaterials.hlsl", nullptr, "VS", "vs_5_0");
+  mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/LightingAndMaterials/LightingAndMaterials.hlsl", nullptr, "PS", "ps_5_0");
+
+  mInputLayout = {
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+  };
+}
+
+void LightingAndMaterialsApp::BuildPSOs() {
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
+  ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+  opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT) mInputLayout.size() };
+  opaquePsoDesc.pRootSignature = mRootSignature.Get();
+  opaquePsoDesc.VS = {
+    reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+    mShaders["standardVS"]->GetBufferSize()
+  };
+  opaquePsoDesc.PS = {
+    reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+    mShaders["opaquePS"]->GetBufferSize()
+  };
+  opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+  opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+  opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  opaquePsoDesc.SampleMask = UINT_MAX;
+  opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  opaquePsoDesc.NumRenderTargets = 1;
+  opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+  opaquePsoDesc.SampleDesc.Count = m4xMsaaQuality ? 4 : 1;
+  opaquePsoDesc.SampleDesc.Quality = m4xMsaaQuality ? (m4xMsaaQuality - 1) : 0;
+  opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+    &opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])
+  ));
+
 }
