@@ -179,8 +179,33 @@ struct Material {
 };
 
 // Subset of Material to be passed to shaders in constant buffers.
+// Will be packed by HLSL as 2 full 4D vectors.
 struct MaterialConstants {
   DirectX::XMFLOAT4 DiffuseAlbedo = {1.0f, 1.0f, 1.0f, 1.0f};
   DirectX::XMFLOAT3 FresnelR0 = {0.01f, 0.01f, 0.01f};
   float Roughness = 0.25f;
+};
+
+
+#define MaxLights 16
+struct Light {
+  // Will be packed by HLSL as 3 full 4D vectors.
+
+  // 1st packed 4D vector.
+  // TODO: what's the range of each component?
+  DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };
+  // Parameter of the linear falloff function; a distance from the light source.
+  float FalloffStart = 1.0f;
+
+  // 2nd packed 4D vector.
+  // For directional lights and spotlights.
+  DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };
+  // Parameter of the linear falloff function; a distance from the light source.
+  float FalloffEnd = 10.0f;
+
+  // 3rd packed 4D vector.
+  // For point and spotlights.
+  DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+  // Exponent of the angular decay function of a spotlight's intensity.
+  float SpotPower = 64.0f;
 };
