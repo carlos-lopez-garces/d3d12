@@ -9,6 +9,7 @@ struct Light {
 
   // For directional lights and spotlights.
   float3 Direction;
+
   // Parameter of the linear falloff function; a distance from the light source.
   float FalloffEnd;
 
@@ -42,7 +43,7 @@ float SchlickFresnel(float R0, float3 N, float3 L) {
   return R0 + (1.0f - R0) * pow(1.0f - saturate(dot(N, L)), 5);
 }
 
-float3 BlinnPhong(float3 lightStrength, float3 L, float3 N, float3 E, Material mat) {
+float3 BlinnPhong(float3 strength, float3 L, float3 N, float3 E, Material mat) {
   // The larger m is, the smoother the surface is and larger the bias of H is towards N.
   const float m = mat.Shininess * 256.0f;
 
@@ -58,9 +59,107 @@ float3 BlinnPhong(float3 lightStrength, float3 L, float3 N, float3 E, Material m
 
   float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, H, L);
 
-  // Cap the reflected radiance's value; we are doing low dynamic range rendering.
+  // Remap the reflected radiance's value to the range [0.0,1.0]; we are doing low dynamic range
+  // rendering because our render target expects values in the range [0.0,1.0]. If we didn't do
+  // this remapping, radiance values higher than 1.0 would get clamped.
   float specularAlbedo = roughnessFactor * fresnelFactor;
   specularAlbedo /= (specularAlbedo + 1.0f);
 
-  return (mat.DiffuseAlbedo.rgb + specularAlbedo) * lightStrength;
+  return (mat.DiffuseAlbedo.rgb + specularAlbedo) * strength;
+}
+
+float3 ComputeDirectionalLight(Light light, Material mat, float3 N, float3 E) {
+  float3 L = -light.Direction;
+
+  // Light strength decays as the angle of incidence increases and according to
+  // Lambert's cosine law.
+  float3 strength = light.Strength * max(dot(L, N), 0.0f);
+
+  return BlinnPhong(strength, L, N, E, mat);
+}
+
+float3 ComputePointLight(Light L, Material mat, float3 P, float3 N, float3 E) {
+  float3 L = light.Position - P;
+
+  // Distance from surface point to point light.
+  float d = length(L);
+
+  if (d > light.FalloffEnd) {
+    // Light from this point light source doesn't reach the surface point.
+    return 0.0f;
+  }
+
+  // Normalize.
+  L /= d;
+
+  // Light strength decays as the angle of incidence increases and according to
+  // Lambert's cosine law.
+  float3 strength = light.Strength * max(dot(L, N), 0.0f);
+
+  // Light strength decays linearly with distance.
+  strength *= Attenuation(d, light.FalloffStart, light.FalloffEnd);
+
+  return BlinnPhong(strength, L, N, E, mat);
+}
+
+float3 ComputeSpotLight(Light light, Material mat, float3 P, float3 N, float3 E) {
+  float3 L = light.Position - P;
+
+  // Distance from surface point to point light.
+  float d = length(L);
+
+  if (d > light.FalloffEnd) {
+    // Light from this point light source doesn't reach the surface point.
+    return 0.0f;
+  }
+
+  // Normalize.
+  L /= d;
+
+  // Light strength decays as the angle of incidence increases and according to
+  // Lambert's cosine law.
+  float3 strength = light.Strength * max(dot(L, N), 0.0f);
+
+  // Light strength decays linearly with distance.
+  strength *= Attenuation(d, light.FalloffStart, light.FalloffEnd);
+
+  // Light strength decays as the light direction L departs from the spot light
+  // source cone's axis.
+  float spotFactor = pow(max(dot(-L, light.Direction), 0.0f), light.SpotPower);
+  strength *= spotFactor;
+
+  return BlinnPhong(strength, L, N, E, mat);
+}
+
+float4 ComputeLighting(
+  Light lights[MaxLights],
+  Material mat,
+  float3 P,
+  float3 N,
+  float3 E,
+  float3 shadowFactor
+) {
+  float3 radiance = 0.0f;
+
+  int i = 0;
+
+#if (NUM_DIR_LIGHTS > 0)
+  for (i = 0; i < NUM_DIR_LIGHTS; ++i) {
+    radiance += shadowFactor[i] * ComputeDirectionalLight(lights[i], mat, N, E);
+  }
+#endif
+
+#if (NUM_POINT_LIGHTS > 0)
+  for (i = NUM_DIR_LIGHTS; i < NUM_DIR_LIGHTS+NUM_POINT_LIGHTS; ++i) {
+    radiance += ComputePointLight(lights[i], mat, P, N, E);
+  }
+#endif
+
+#if (NUM_SPOT_LIGHTS > 0)
+  for (i = NUM_DIR_LIGHTS + NUM_POINT_LIGHTS; i < NUM_DIR_LIGHTS + NUM_POINT_LIGHTS + NUM_SPOT_LIGHTS; ++i) {
+    radiance += ComputeSpotLight(lights[i], mat, P, N, E);
+  }
+#endif
+
+  return float4(radiance, 0.0f);
 }
