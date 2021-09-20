@@ -18,6 +18,13 @@ struct Light {
   float SpotPower;
 };
 
+struct Material {
+  // The fraction of radiance that gets reflected per color component.
+  float4 DiffuseAlbedo;
+  float3 FresnelR0;
+  float Shininess;
+};
+
 // Linear falloff function. Approximates the inverse squared decay law of light
 // attenuation. falloffStart and falloffEnd is a range of distance from the light
 // source; the function maps the interval [falloffStart, falloffEnd] linearly to
@@ -33,4 +40,27 @@ float Attenuation(float d, float falloffStart, float falloffEnd) {
 // TODO: what's R0?
 float SchlickFresnel(float R0, float3 N, float3 L) {
   return R0 + (1.0f - R0) * pow(1.0f - saturate(dot(N, L)), 5);
+}
+
+float3 BlinnPhong(float3 lightStrength, float3 L, float3 N, float3 E, Material mat) {
+  // The larger m is, the smoother the surface is and larger the bias of H is towards N.
+  const float m = mat.Shininess * 256.0f;
+
+  // Halfway vector. Characterizes the orientation of a subset of the microfacets about
+  // the normal.
+  float3 H = normalize(E + L);
+
+  // The microfacet distribution function rho(thetaH) = cos^m(H, N) determines the fraction
+  // of microfacets about the normal that form a thetaH angle with the normal. m characterizes
+  // the material's roughness; as m becomes larger, the orientation of a larger fraction of
+  // microfacets will tend towards the direction of the normal, making the surface look smoother.
+  float roughnessFactor = (m + 8.0f) * pow(max(dot(H, N), 0.0f), m) / 8.0f;
+
+  float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, H, L);
+
+  // Cap the reflected radiance's value; we are doing low dynamic range rendering.
+  float specularAlbedo = roughnessFactor * fresnelFactor;
+  specularAlbedo /= (specularAlbedo + 1.0f);
+
+  return (mat.DiffuseAlbedo.rgb + specularAlbedo) * lightStrength;
 }
