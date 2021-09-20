@@ -16,6 +16,14 @@ cbuffer cbPerObject : register(b0) {
   float4x4 gWorld;
 };
 
+cbuffer cbMaterial : register(b1)
+{
+  float4 gDiffuseAlbedo;
+  float3 gFresnelR0;
+  float  gRoughness;
+  float4x4 gMatTransform;
+};
+
 cbuffer cbPass : register(b2) {
   float4x4 gView;
   float4x4 gInvView;
@@ -71,3 +79,40 @@ VertexOut VS(VertexIn vin) {
 
   return vout;
 }
+
+float4 PS(VertexOut pin) : SV_Target{
+  // pin.NormalW is an interpolation of the triangle's vertex normals. The interpolated
+  // normal may not be normalized.
+  pin.NormalW = normalize(pin.NormalW);
+
+  float3 E = normalize(gEyePos - pin.PosW);
+
+  // Ambient component, the result of diffuse reflection of indirect light.
+  float4 ambient = gAmbientLigtht * gDiffuseAlbedo;
+
+  const float shininess = 1.0f - gRoughness;
+  Material mat = { 
+    gDiffuseAlbedo,
+    gFresnelR0,
+    shininess
+  };
+
+  // Will have no effect with a value of 1.0.
+  float shadowFactor = 1.0f;
+
+  float4 directLight = ComputeLighting(
+    gLights,
+    mat,
+    pin.PosW,
+    pin.NormalW,
+    E,
+    shadowFactor
+  );
+
+  // Evaluate Phong equation.
+  float4 litColor = ambient + directLight;
+
+  litColor.a = gDiffuseAlbedo.a;
+
+  return litColor;
+};
