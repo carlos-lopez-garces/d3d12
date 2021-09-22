@@ -67,6 +67,8 @@ private:
   std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
+  POINT mLastMousePos;
+
 public:
   LightingAndMaterialsApp(HINSTANCE hInstance) : D3DApp(hInstance) {}
   ~LightingAndMaterialsApp() { 
@@ -91,6 +93,10 @@ private:
   void Draw(const GameTimer& gt);
   void UpdateMainPassCB(const GameTimer &gt);
   void BuildShapeGeometry();
+  virtual void Update(const GameTimer& gt) override;
+  virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
+  virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
+  virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 };
 
 void LightingAndMaterialsApp::BuildMaterials() {
@@ -612,6 +618,66 @@ bool LightingAndMaterialsApp::Initialize() {
   FlushCommandQueue();
 
   return true;
+}
+
+void LightingAndMaterialsApp::Update(const GameTimer &gt) {
+  UpdateCamera(gt);
+
+  // Move to the next frame's resources.
+  mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
+  mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+
+  if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
+    // The frame resource we moved on to is still in the GPU command queue (it
+    // follows that the other 2 frame resources are also in the queue, but behind it).
+    // Block until the frame is completed.
+    HANDLE eventHandle = CreateEventExW(nullptr, nullptr, false, EVENT_ALL_ACCESS);
+    ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
+    WaitForSingleObject(eventHandle, INFINITE);
+    CloseHandle(eventHandle);
+  }
+
+  UpdateObjectCBs(gt);
+  UpdateMaterialCBs(gt);
+  UpdateMainPassCB(gt);
+}
+
+void LightingAndMaterialsApp::OnMouseDown(WPARAM btnState, int x, int y) {
+  mLastMousePos.x = x;
+  mLastMousePos.y = y;
+  SetCapture(mhMainWnd);
+}
+
+void LightingAndMaterialsApp::OnMouseUp(WPARAM btnState, int x, int y) {
+  ReleaseCapture();
+}
+
+void LightingAndMaterialsApp::OnMouseMove(WPARAM btnState, int x, int y) {
+  if ((btnState & MK_LBUTTON) != 0) {
+    // Rotate the camera.
+
+    // 1 pixel change in the x direction corresponds to 1/4 of a degree.
+    float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
+    // 1 pixel change in the y direction corresponds to 1/4 of a degree.
+    float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+
+    mTheta += dx;
+    mPhi += dy;
+
+    // Maximum colatitude angle is PI.
+    mPhi = Math::Clamp(mPhi, 0.1f, Math::Pi - 0.1f);
+  } else if ((btnState & MK_RBUTTON) != 0) {
+    // Pan the camera.
+
+    float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
+    float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
+
+    mRadius += dx - dy;
+    mRadius = Math::Clamp(mRadius, 5.0f, 150.0f);
+  }
+
+  mLastMousePos.x = x;
+  mLastMousePos.y = y;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
