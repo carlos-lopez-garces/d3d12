@@ -47,8 +47,7 @@ struct FrameResource {
     ID3D12Device *device,
     UINT passCount,
     UINT objectCount,
-    UINT materialCount,
-    UINT waveVertCount
+    UINT materialCount
   );
   ~FrameResource();
 

@@ -93,24 +93,33 @@ private:
 };
 
 void LightingAndMaterialsApp::BuildMaterials() {
-  auto grass = std::make_unique<Material>();
-  grass->Name = "grass";
-  grass->MatCBIndex = 0;
-  grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);
-  grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+  auto brick = std::make_unique<Material>();
+  brick->Name = "brick";
+  brick->MatCBIndex = 0;
+  brick->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
+  brick->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
   // Relatively smooth.
-  grass->Roughness = 0.125f;
+  brick->Roughness = 0.1f;
 
-  auto water = std::make_unique<Material>();
-  water->Name = "water";
-  water->MatCBIndex = 1;
-  water->DiffuseAlbedo = XMFLOAT4(0.0f, 0.2f, 0.6f, 1.0f);
-  water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-  // Completely smooth.
-  water->Roughness = 0.0f;
+  auto stone = std::make_unique<Material>();
+  stone->Name = "stone";
+  stone->MatCBIndex = 1;
+  stone->DiffuseAlbedo = XMFLOAT4(Colors::LightSteelBlue);
+  stone->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+  // Rougher than brick.
+  stone->Roughness = 0.3f;
 
-  mMaterials["grass"] = std::move(grass);
-  mMaterials["water"] = std::move(water);
+  auto tile = std::make_unique<Material>();
+  tile->Name = "tile";
+  tile->MatCBIndex = 2;
+  tile->DiffuseAlbedo = XMFLOAT4(Colors::LightGray);
+  tile->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+  // Rougher than brick, but smoother than stone.
+  tile->Roughness = 0.2f;
+
+  mMaterials["brick"] = std::move(brick);
+  mMaterials["stone"] = std::move(stone);
+  mMaterials["tile"] = std::move(tile);
 }
 
 void LightingAndMaterialsApp::UpdateMaterialCBs(const GameTimer& gt) {
@@ -209,8 +218,7 @@ void LightingAndMaterialsApp::BuildFrameResources() {
       // 1 pass.
       1,
       (UINT) mAllRenderItems.size(),
-      (UINT) mMaterials.size(),
-      mWaves->VertexCount()
+      (UINT) mMaterials.size()
     ));
   }
 }
