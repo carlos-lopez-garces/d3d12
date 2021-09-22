@@ -74,6 +74,7 @@ public:
       FlushCommandQueue();
     }
   }
+  virtual bool Initialize() override;
 
 private:
   void BuildMaterials();
@@ -583,4 +584,32 @@ void LightingAndMaterialsApp::BuildShapeGeometry() {
   geo->DrawArgs["cylinder"] = cylinderSubmesh;
 
   mGeometries[geo->Name] = std::move(geo);
+}
+
+bool LightingAndMaterialsApp::Initialize() {
+  if (!D3DApp::Initialize()) {
+    return false;
+  }
+
+  ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+  // Query the driver for the increment size of a descriptor of the CbvSrvUav heap.
+  mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+  BuildRootSignature();
+  BuildShadersAndInputLayout();
+  BuildShapeGeometry();
+  BuildMaterials();
+  // Render items associate geometry instances and materials.
+  BuildRenderItems();
+  BuildFrameResources();
+  BuildPSOs();
+
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+  // Blocks.
+  FlushCommandQueue();
+
+  return true;
 }
