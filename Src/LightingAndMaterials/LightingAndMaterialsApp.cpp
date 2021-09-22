@@ -50,8 +50,6 @@ private:
   // Render items organized by layer, because they might need different PSOs
   // (although this app only needs one).
   std::vector<RenderItem*> mRenderItemLayer[(int) RenderLayer::Count];
-  RenderItem* mWavesRenderItem = nullptr;
-  std::unique_ptr<Waves> mWaves;
 
   // Eye.
   XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
