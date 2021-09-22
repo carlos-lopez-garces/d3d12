@@ -398,10 +398,13 @@ void LightingAndMaterialsApp::UpdateMainPassCB(const GameTimer& gt) {
 
   // Lighting.
   mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-  // The light vector points from the origin to the sun light source.
-  XMVECTOR lightDir = -Math::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
-  XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
-  mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
+  // 3 directional lights.
+  mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+  mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+  mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+  mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+  mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+  mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
   // Copy updated main pass data to upload buffer for eventual transfer to contant buffer.
   auto currPassCB = mCurrFrameResource->PassCB.get();
