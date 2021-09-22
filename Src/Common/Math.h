@@ -12,4 +12,8 @@ namespace Math {
 	DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX M);
 
 	DirectX::XMVECTOR SphericalToCartesian(float rho, float theta, float phi);
+
+	template<typename T> T Clamp(const T& x, const T& low, const T& high) {
+		return (x < low) ? low : (x > high ? high : x);
+	}
 }
