@@ -56,9 +56,11 @@ private:
   XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
   XMFLOAT4X4 mView = Math::Identity4x4();
   XMFLOAT4X4 mProj = Math::Identity4x4();
+  // Polar angle.
   float mTheta = 1.5 * XM_PI;
-  float mPhi = XM_PIDIV2 - 0.1f;
-  float mRadius = 50.0f;
+  // Colatitude.
+  float mPhi = 0.2f * XM_PI;
+  float mRadius = 15.0f;
 
   // Pipeline configuration.
   ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
@@ -67,6 +69,12 @@ private:
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
 public:
+  LightingAndMaterialsApp(HINSTANCE hInstance) : D3DApp(hInstance) {}
+  ~LightingAndMaterialsApp() { 
+    if (md3dDevice != nullptr) {
+      FlushCommandQueue();
+    }
+  }
 
 private:
   void BuildMaterials();
