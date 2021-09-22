@@ -49,7 +49,7 @@ struct FrameResource {
     UINT objectCount,
     UINT materialCount
   );
-  ~FrameResource();
+  ~FrameResource() {}
 
   Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
