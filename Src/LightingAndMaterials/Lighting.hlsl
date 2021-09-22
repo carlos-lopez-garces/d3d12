@@ -78,7 +78,7 @@ float3 ComputeDirectionalLight(Light light, Material mat, float3 N, float3 E) {
   return BlinnPhong(strength, L, N, E, mat);
 }
 
-float3 ComputePointLight(Light L, Material mat, float3 P, float3 N, float3 E) {
+float3 ComputePointLight(Light light, Material mat, float3 P, float3 N, float3 E) {
   float3 L = light.Position - P;
 
   // Distance from surface point to point light.
