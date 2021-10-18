@@ -29,13 +29,6 @@ struct RenderItem {
   int BaseVertexLocation = 0;
 };
 
-// This app only needs 1 render layer because all the render items can be drawn with the same
-// PSO.
-enum class RenderLayer : int {
-  Opaque = 0,
-  Count
-};
-
 class LightingAndMaterialsApp : public D3DApp {
 private:
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
@@ -47,9 +40,9 @@ private:
 
   // All render items.
   std::vector<std::unique_ptr<RenderItem>> mAllRenderItems;
-  // Render items organized by layer, because they might need different PSOs
-  // (although this app only needs one).
-  std::vector<RenderItem*> mRenderItemLayer[(int) RenderLayer::Count];
+  // This app only needs 1 render layer because all the render items can be drawn with the same
+  // PSO.
+  std::vector<RenderItem*> mOpaqueRenderItems;
 
   // Eye.
   XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
@@ -64,7 +57,7 @@ private:
   // Pipeline configuration.
   ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
   std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
-  std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
+  ComPtr<ID3D12PipelineState> mOpaquePSO = nullptr;
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
   POINT mLastMousePos;
@@ -156,8 +149,10 @@ void LightingAndMaterialsApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList
 
   for (size_t i = 0; i < ritems.size(); ++i) {
     auto ri = ritems[i];
-    cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
-    cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
+    auto vbv = ri->Geo->VertexBufferView();
+    cmdList->IASetVertexBuffers(0, 1, &vbv);
+    auto ibv = ri->Geo->IndexBufferView();
+    cmdList->IASetIndexBuffer(&ibv);
     cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
     D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
@@ -182,7 +177,7 @@ void LightingAndMaterialsApp::BuildRenderItems()
   boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
   boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
   boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
-  mRenderItemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
+  mOpaqueRenderItems.push_back(boxRitem.get());
   mAllRenderItems.push_back(std::move(boxRitem));
 
   auto gridRitem = std::make_unique<RenderItem>();
@@ -194,10 +189,10 @@ void LightingAndMaterialsApp::BuildRenderItems()
   gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
   gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
   gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
-  mRenderItemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
+  mOpaqueRenderItems.push_back(gridRitem.get());
   mAllRenderItems.push_back(std::move(gridRitem));
 
-  UINT objCBIndex = 3;
+  UINT objCBIndex = 2;
   for (int i = 0; i < 5; ++i) {
     auto leftCylRitem = std::make_unique<RenderItem>();
     auto rightCylRitem = std::make_unique<RenderItem>();
@@ -218,7 +213,7 @@ void LightingAndMaterialsApp::BuildRenderItems()
     leftCylRitem->IndexCount = leftCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
     leftCylRitem->StartIndexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
     leftCylRitem->BaseVertexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
-    mRenderItemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
+    mOpaqueRenderItems.push_back(leftCylRitem.get());
     mAllRenderItems.push_back(std::move(leftCylRitem));
 
     XMStoreFloat4x4(&rightCylRitem->World, leftCylWorld);
@@ -229,7 +224,7 @@ void LightingAndMaterialsApp::BuildRenderItems()
     rightCylRitem->IndexCount = rightCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
     rightCylRitem->StartIndexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
     rightCylRitem->BaseVertexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
-    mRenderItemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
+    mOpaqueRenderItems.push_back(rightCylRitem.get());
     mAllRenderItems.push_back(std::move(rightCylRitem));
 
     XMStoreFloat4x4(&leftSphereRitem->World, leftSphereWorld);
@@ -240,7 +235,7 @@ void LightingAndMaterialsApp::BuildRenderItems()
     leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
     leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
     leftSphereRitem->BaseVertexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
-    mRenderItemLayer[(int)RenderLayer::Opaque].push_back(leftSphereRitem.get());
+    mOpaqueRenderItems.push_back(leftSphereRitem.get());
     mAllRenderItems.push_back(std::move(leftSphereRitem));
 
     XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
@@ -251,7 +246,7 @@ void LightingAndMaterialsApp::BuildRenderItems()
     rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
     rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
     rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
-    mRenderItemLayer[(int)RenderLayer::Opaque].push_back(rightSphereRitem.get());
+    mOpaqueRenderItems.push_back(rightSphereRitem.get());
     mAllRenderItems.push_back(std::move(rightSphereRitem));
   }
 }
@@ -345,8 +340,8 @@ void LightingAndMaterialsApp::BuildRootSignature() {
 }
 
 void LightingAndMaterialsApp::BuildShadersAndInputLayout() {
-  mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/LightingAndMaterials/LightingAndMaterials.hlsl", nullptr, "VS", "vs_5_0");
-  mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/LightingAndMaterials/LightingAndMaterials.hlsl", nullptr, "PS", "ps_5_0");
+  mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/LightingAndMaterials/LightingAndMaterials.hlsl", nullptr, "VS", "vs_5_1");
+  mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/LightingAndMaterials/LightingAndMaterials.hlsl", nullptr, "PS", "ps_5_1");
 
   mInputLayout = {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -374,12 +369,12 @@ void LightingAndMaterialsApp::BuildPSOs() {
   opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   opaquePsoDesc.NumRenderTargets = 1;
   opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
-  opaquePsoDesc.SampleDesc.Count = m4xMsaaQuality ? 4 : 1;
-  opaquePsoDesc.SampleDesc.Quality = m4xMsaaQuality ? (m4xMsaaQuality - 1) : 0;
+  opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+  opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
   opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
-    &opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])
+    &opaquePsoDesc, IID_PPV_ARGS(&mOpaquePSO)
   ));
 }
 
@@ -395,23 +390,26 @@ void LightingAndMaterialsApp::Draw(const GameTimer &gt) {
   // in the command queue and can be reclaimed and reused by the app.
   auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
   ThrowIfFailed(cmdListAlloc->Reset());
-  ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
+  ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mOpaquePSO.Get()));
 
   mCommandList->RSSetViewports(1, &mScreenViewport);
   mCommandList->RSSetScissorRects(1, &mScissorRect);
 
+  auto renderTargetBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+    CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET
+  );
   mCommandList->ResourceBarrier(
     1,
-    &CD3DX12_RESOURCE_BARRIER::Transition(
-      CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET
-    )
+    &renderTargetBarrier
   );
 
   mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
   mCommandList->ClearDepthStencilView(
     DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr
   );
-  mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+  auto cbbv = CurrentBackBufferView();
+  auto dsv = DepthStencilView();
+  mCommandList->OMSetRenderTargets(1, &cbbv, true, &dsv);
   
   mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
@@ -420,15 +418,16 @@ void LightingAndMaterialsApp::Draw(const GameTimer &gt) {
   mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
   // Use the current frame resource's command list for drawing objects.
-  DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int) RenderLayer::Opaque]);
+  DrawRenderItems(mCommandList.Get(), mOpaqueRenderItems);
 
   // Drawing commands with the current back buffer as render target have been queued already.
   // Insert command to present it to the screen.
+  auto presentBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+    CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
+  );
   mCommandList->ResourceBarrier(
     1,
-    &CD3DX12_RESOURCE_BARRIER::Transition(
-      CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
-    )
+    &presentBarrier
   );
 
   ThrowIfFailed(mCommandList->Close());
@@ -437,6 +436,7 @@ void LightingAndMaterialsApp::Draw(const GameTimer &gt) {
   mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
   ThrowIfFailed(mSwapChain->Present(0, 0));
+
   mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
   mCurrFrameResource->Fence = ++mCurrentFence;
   mCommandQueue->Signal(mFence.Get(), mCurrentFence);
@@ -446,9 +446,12 @@ void LightingAndMaterialsApp::UpdateMainPassCB(const GameTimer& gt) {
   XMMATRIX view = XMLoadFloat4x4(&mView);
   XMMATRIX proj = XMLoadFloat4x4(&mProj);
   XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-  XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-  XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
-  XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+  auto viewDeterminant = XMMatrixDeterminant(view);
+  XMMATRIX invView = XMMatrixInverse(&viewDeterminant, view);
+  auto projDeterminant = XMMatrixDeterminant(proj);
+  XMMATRIX invProj = XMMatrixInverse(&projDeterminant, proj);
+  auto viewProjDeterminant = XMMatrixDeterminant(viewProj);
+  XMMATRIX invViewProj = XMMatrixInverse(&viewProjDeterminant, viewProj);
 
   XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
   XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
@@ -669,8 +672,8 @@ void LightingAndMaterialsApp::OnMouseMove(WPARAM btnState, int x, int y) {
   } else if ((btnState & MK_RBUTTON) != 0) {
     // Pan the camera.
 
-    float dx = 0.2f * static_cast<float>(x - mLastMousePos.x);
-    float dy = 0.2f * static_cast<float>(y - mLastMousePos.y);
+    float dx = 0.5f * static_cast<float>(x - mLastMousePos.x);
+    float dy = 0.5f * static_cast<float>(y - mLastMousePos.y);
 
     mRadius += dx - dy;
     mRadius = Math::Clamp(mRadius, 5.0f, 150.0f);

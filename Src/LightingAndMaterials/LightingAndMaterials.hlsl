@@ -21,7 +21,6 @@ cbuffer cbMaterial : register(b1)
   float4 gDiffuseAlbedo;
   float3 gFresnelR0;
   float  gRoughness;
-  float4x4 gMatTransform;
 };
 
 cbuffer cbPass : register(b2) {
@@ -75,7 +74,7 @@ VertexOut VS(VertexIn vin) {
   vout.NormalW = mul(vin.NormalL, (float3x3) gWorld);
 
   // Transform world space position to homogeneous clip space.
-  vout.PosH = mult(posW, gViewProj);
+  vout.PosH = mul(posW, gViewProj);
 
   return vout;
 }
@@ -85,10 +84,10 @@ float4 PS(VertexOut pin) : SV_Target{
   // normal may not be normalized.
   pin.NormalW = normalize(pin.NormalW);
 
-  float3 E = normalize(gEyePos - pin.PosW);
+  float3 E = normalize(gEyePosW - pin.PosW);
 
   // Ambient component, the result of diffuse reflection of indirect light.
-  float4 ambient = gAmbientLigtht * gDiffuseAlbedo;
+  float4 ambient = gAmbientLight * gDiffuseAlbedo;
 
   const float shininess = 1.0f - gRoughness;
   Material mat = { 
