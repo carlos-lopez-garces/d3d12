@@ -115,12 +115,20 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
+      <ConformanceMode>Default</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
     </Link>
+    <FxCompile>
+      <EntryPointName>VS</EntryPointName>
+    </FxCompile>
+    <FxCompile>
+      <ShaderType>Effect</ShaderType>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -143,6 +151,10 @@
     <ClInclude Include="Src\Common\d3dUtil.h" />
     <ClInclude Include="Src\Common\d3dx12.h" />
     <ClInclude Include="Src\Common\GameTimer.h" />
+    <ClInclude Include="Src\Common\GeometryGenerator.h" />
+    <ClInclude Include="Src\Common\Math.h" />
+    <ClInclude Include="Src\Common\UploadBuffer.h" />
+    <ClInclude Include="Src\Texturing\FrameResource.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
@@ -153,7 +165,10 @@
     <ClCompile Include="Src\Common\d3dApp.cpp" />
     <ClCompile Include="Src\Common\d3dUtil.cpp" />
     <ClCompile Include="Src\Common\GameTimer.cpp" />
-    <ClCompile Include="Src\Initialization\InitDirect3DApp.cpp" />
+    <ClCompile Include="Src\Common\GeometryGenerator.cpp" />
+    <ClCompile Include="Src\Common\Math.cpp" />
+    <ClCompile Include="Src\Texturing\FrameResource.cpp" />
+    <ClCompile Include="Src\Texturing\TexturingApp.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

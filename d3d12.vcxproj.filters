@@ -22,6 +22,27 @@
     <Filter Include="Source Files\Initialization">
       <UniqueIdentifier>{0329b7dc-de9e-45e2-ace1-540675ba2242}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Drawing">
+      <UniqueIdentifier>{926514ec-c3a7-490f-8d94-df614c7347b5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\FrameResources">
+      <UniqueIdentifier>{54d9aafa-e2b9-49bb-b6ac-e98cd9f20ada}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\FrameResources">
+      <UniqueIdentifier>{8a99385a-0d03-4fa0-8f94-52ee08117f43}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\LightingAndMaterials">
+      <UniqueIdentifier>{11eb66a2-93b6-4719-9db3-cffe7c1b2c9d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\LightingAndMaterials">
+      <UniqueIdentifier>{551d5daf-0cdb-4a0b-9f4d-9d7de8606971}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Texturing">
+      <UniqueIdentifier>{65c0f498-c7da-444e-bcf2-915c1259b310}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Texturing">
+      <UniqueIdentifier>{469afeba-9316-43f7-8dd8-8a18bc059106}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="targetver.h">
@@ -38,6 +59,18 @@
     </ClInclude>
     <ClInclude Include="Src\Common\GameTimer.h">
       <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Common\Math.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Common\UploadBuffer.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Common\GeometryGenerator.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Texturing\FrameResource.h">
+      <Filter>Header Files\Texturing</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -58,8 +91,17 @@
     <ClCompile Include="Src\Common\GameTimer.cpp">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Initialization\InitDirect3DApp.cpp">
-      <Filter>Source Files\Initialization</Filter>
+    <ClCompile Include="Src\Common\Math.cpp">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Common\GeometryGenerator.cpp">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Texturing\FrameResource.cpp">
+      <Filter>Source Files\Texturing</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Texturing\TexturingApp.cpp">
+      <Filter>Source Files\Texturing</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

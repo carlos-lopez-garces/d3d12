@@ -326,9 +326,10 @@ void D3DApp::OnResize() {
   optClear.DepthStencil.Depth = 1.0f;
   optClear.DepthStencil.Stencil = 0;
 
+  auto heapType = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
   // Create the depth/stencil buffer.
   ThrowIfFailed(md3dDevice->CreateCommittedResource(
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+    &heapType,
     D3D12_HEAP_FLAG_NONE,
     &depthStencilDesc,
     D3D12_RESOURCE_STATE_COMMON,
@@ -350,16 +351,18 @@ void D3DApp::OnResize() {
     DepthStencilView()
   );
 
+  // Transition barriers indicate that a set of resources will transition between 
+  // different usages: in this case, from whatever D3D12_RESOURCE_STATE_COMMON is
+  // to being used as a depth/stencil buffer.
+  auto transitionBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+    mDepthStencilBuffer.Get(),
+    D3D12_RESOURCE_STATE_COMMON,
+    D3D12_RESOURCE_STATE_DEPTH_WRITE
+  );
+
   mCommandList->ResourceBarrier(
     1,
-    // Transition barriers indicate that a set of resources will transition between 
-    // different usages: in this case, from whatever D3D12_RESOURCE_STATE_COMMON is
-    // to being used as a depth/stencil buffer.
-    &CD3DX12_RESOURCE_BARRIER::Transition(
-      mDepthStencilBuffer.Get(),
-      D3D12_RESOURCE_STATE_COMMON,
-      D3D12_RESOURCE_STATE_DEPTH_WRITE
-    )
+    &transitionBarrier
   );
 
   ThrowIfFailed(mCommandList->Close());

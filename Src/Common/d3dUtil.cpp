@@ -25,26 +25,34 @@ Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
 ) {
   ComPtr<ID3D12Resource> defaultBuffer;
 
+  // Static geometry usually goes in the default heap (the default heap can only
+  // be accessed by the GPU; if the CPU needs to change the geometry, via e.g.
+  // animation, then the buffer needs to be allocated somewhere else).
+  auto defaultHeapType = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+  // The buffer resource descriptor.
+  auto defaultBufferDescriptor = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
+
   ThrowIfFailed(device->CreateCommittedResource(
-    // Static geometry usually goes in the default heap (the default heap can only
-    // be accessed by the GPU; if the CPU needs to change the geometry, via e.g.
-    // animation, then the buffer needs to be allocated somewhere else).
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+    &defaultHeapType,
     D3D12_HEAP_FLAG_NONE,
-    // The buffer resource descriptor.
-    &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
+    &defaultBufferDescriptor,
     D3D12_RESOURCE_STATE_COMMON,
     nullptr,
     // The buffer resource.
     IID_PPV_ARGS(defaultBuffer.GetAddressOf())
   ));
 
+  // Upload heap.
+  auto uploadHeapType = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+
+  // The upload buffer resource descriptor.
+  auto uploadHeapDescriptor = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
+
   ThrowIfFailed(device->CreateCommittedResource(
-    // Upload heap.
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+    &uploadHeapType,
     D3D12_HEAP_FLAG_NONE,
-    // The upload buffer resource descriptor.
-    &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
+    &uploadHeapDescriptor,
     D3D12_RESOURCE_STATE_GENERIC_READ,
     nullptr,
     IID_PPV_ARGS(uploadBuffer.GetAddressOf())
@@ -55,13 +63,15 @@ Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
   subResourceData.RowPitch = byteSize;
   subResourceData.SlicePitch = subResourceData.RowPitch;
 
+  auto transitionBarrier1 = CD3DX12_RESOURCE_BARRIER::Transition(
+    defaultBuffer.Get(),
+    D3D12_RESOURCE_STATE_COMMON,
+    D3D12_RESOURCE_STATE_COPY_DEST
+  );
+
   cmdList->ResourceBarrier(
     1,
-    &CD3DX12_RESOURCE_BARRIER::Transition(
-      defaultBuffer.Get(),
-      D3D12_RESOURCE_STATE_COMMON,
-      D3D12_RESOURCE_STATE_COPY_DEST
-    )
+    &transitionBarrier1
   );
 
   // From d3dx12.h. Copies data to a destination resource via an intermediate buffer.
@@ -69,12 +79,14 @@ Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
   // copies it to the default buffer (only the GPU has access to the default heap).
   UpdateSubresources<1>(cmdList, defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);
 
+  auto transitionBarrier2 = CD3DX12_RESOURCE_BARRIER::Transition(
+    defaultBuffer.Get(),
+    D3D12_RESOURCE_STATE_COPY_DEST,
+    D3D12_RESOURCE_STATE_GENERIC_READ
+  );
+
   cmdList->ResourceBarrier(1,
-    &CD3DX12_RESOURCE_BARRIER::Transition(
-      defaultBuffer.Get(),
-      D3D12_RESOURCE_STATE_COPY_DEST,
-      D3D12_RESOURCE_STATE_GENERIC_READ
-    )
+    &transitionBarrier2
   );
 
   return defaultBuffer;
