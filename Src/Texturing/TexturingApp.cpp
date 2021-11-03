@@ -1,4 +1,5 @@
 #include "../Common/d3dApp.h"
+#include "../Common/DDSTextureLoader.h"
 #include "../Common/GeometryGenerator.h"
 #include "FrameResource.h"
 #include <DirectXMath.h>
@@ -33,6 +34,7 @@ class TexturingApp : public D3DApp {
 private:
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+  std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
   FrameResource *mCurrFrameResource = nullptr;
   int mCurrFrameResourceIndex = 0;
@@ -59,6 +61,7 @@ private:
   std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
   ComPtr<ID3D12PipelineState> mOpaquePSO = nullptr;
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+  ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
   POINT mLastMousePos;
 
@@ -90,6 +93,9 @@ private:
   virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
   virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
   virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
+  void LoadTextures();
+  void BuildDescriptorHeaps();
+  std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 };
 
 void TexturingApp::BuildMaterials() {
@@ -605,6 +611,8 @@ bool TexturingApp::Initialize() {
   // Query the driver for the increment size of a descriptor of the CbvSrvUav heap.
   mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+  LoadTextures();
+
   BuildRootSignature();
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
@@ -681,6 +689,161 @@ void TexturingApp::OnMouseMove(WPARAM btnState, int x, int y) {
 
   mLastMousePos.x = x;
   mLastMousePos.y = y;
+}
+
+void TexturingApp::LoadTextures() {
+  auto bricksTex = std::make_unique<Texture>();
+  bricksTex->Name = "bricksTex";
+  bricksTex->Filename = L"Assets\\bricks.dds";
+  ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+    md3dDevice.Get(),
+    mCommandList.Get(),
+    bricksTex->Filename.c_str(),
+    bricksTex->Resource,
+    bricksTex->UploadHeap
+  ));
+
+  auto stoneTex = std::make_unique<Texture>();
+	stoneTex->Name = "stoneTex";
+	stoneTex->Filename = L"Assets\\stone.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+    md3dDevice.Get(),
+		mCommandList.Get(),
+    stoneTex->Filename.c_str(),
+		stoneTex->Resource,
+    stoneTex->UploadHeap
+  ));
+
+	auto tileTex = std::make_unique<Texture>();
+	tileTex->Name = "tileTex";
+	tileTex->Filename = L"Assets\\tile.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+    md3dDevice.Get(),
+		mCommandList.Get(),
+    tileTex->Filename.c_str(),
+		tileTex->Resource,
+    tileTex->UploadHeap
+  ));
+
+  mTextures[bricksTex->Name] = std::move(bricksTex);
+  mTextures[stoneTex->Name] = std::move(stoneTex);
+  mTextures[tileTex->Name] = std::move(tileTex);
+}
+
+void TexturingApp::BuildDescriptorHeaps() {
+  // Descriptor for creating a heap for texture (shader resource) descriptors. 
+  D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+  // 3 because we load 3 textures: brick, stone, and tiles.
+  srvHeapDesc.NumDescriptors = 3;
+  srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  // Indicates that the descriptors may only be created in GPU memory, without the need for staging
+  // them on the CPU. Likely because this application doesn't need to update the texture descriptors
+  // between frames.
+  srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
+  // A handle for the application to reference the texture descriptor heap.
+  CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+  auto bricksTex = mTextures["bricksTex"]->Resource;
+	auto stoneTex = mTextures["stoneTex"]->Resource;
+	auto tileTex = mTextures["tileTex"]->Resource;
+
+  // Allocate descriptor for brick texture in the descriptor heap.
+  D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+  srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srvDesc.Format = bricksTex->GetDesc().Format;
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srvDesc.Texture2D.MostDetailedMip = 0;
+  srvDesc.Texture2D.MipLevels = bricksTex->GetDesc().MipLevels;
+  srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+  md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
+  
+  // Allocate descriptor for stone texture in the descriptor heap next to the brick texture descriptor.
+  hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+  srvDesc.Format = stoneTex->GetDesc().Format;
+  srvDesc.Texture2D.MipLevels = stoneTex->GetDesc().MipLevels;
+  md3dDevice->CreateShaderResourceView(stoneTex.Get(), &srvDesc, hDescriptor);
+
+  // Allocate descriptor for tile texture in the descriptor heap next to the stone texture descriptor.
+  hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+  srvDesc.Format = tileTex->GetDesc().Format;
+  srvDesc.Texture2D.MipLevels = tileTex->GetDesc().MipLevels;
+  md3dDevice->CreateShaderResourceView(tileTex.Get(), &srvDesc, hDescriptor);
+}
+
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TexturingApp::GetStaticSamplers() {
+  // Create 6 samplers, 1 for each of the combinations of filters (point, linear, and anisotropic)
+  // and address modes (wrap and clamp). All 6 samplers use the same filter for magnification/minification
+  // and mipmaps: either point, linear, or anisotropic. All 6 samplers use the same address mode on
+  // all the texture coordinates u, v, w.
+
+  // The number is the bound shader register.
+
+  const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
+    0,
+    D3D12_FILTER_MIN_MAG_MIP_POINT,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP
+  );
+
+  const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
+    1,
+    D3D12_FILTER_MIN_MAG_MIP_POINT,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP
+  );
+
+  const CD3DX12_STATIC_SAMPLER_DESC linearWrap(
+    2,
+    D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP
+  );
+
+  const CD3DX12_STATIC_SAMPLER_DESC linearClamp(
+    3,
+    D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP
+  );
+
+  const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
+    4,
+    D3D12_FILTER_ANISOTROPIC,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+    // mipLODBias.
+    0.0f,
+    // maxAnisotropy.
+    8
+  );
+
+  const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
+    5,
+    D3D12_FILTER_ANISOTROPIC,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+    // mipLODBias.
+    0.0f,
+    // maxAnisotropy
+    8
+  );
+
+  return {
+    pointWrap,
+    pointClamp,
+    linearWrap,
+    linearClamp,
+    anisotropicWrap,
+    anisotropicClamp
+  };
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
