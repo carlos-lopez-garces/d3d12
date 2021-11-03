@@ -209,3 +209,16 @@ struct Light {
   // Exponent of the angular decay function of a spotlight's intensity.
   float SpotPower = 64.0f;
 };
+
+struct Texture {
+  // For lookups.
+  std::string Name;
+
+  std::wstring Filename;
+
+  // A texture is a resource.
+  Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;
+
+  // So that the CPU may change the resource between frames.
+  Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;
+};
