@@ -1,3 +1,5 @@
+// #define D3DCOMPILE_DEBUG 1
+
 #include "../Common/d3dApp.h"
 #include "../Common/DDSTextureLoader.h"
 #include "../Common/GeometryGenerator.h"
@@ -12,12 +14,14 @@ const int gNumFrameResources = 3;
 struct RenderItem {
   XMFLOAT4X4 World = Math::Identity4x4();
 
+  XMFLOAT4X4 TexTransform = Math::Identity4x4();
+
   int NumFramesDirty = gNumFrameResources;
 
   // Index into the object constant buffer where this render item's data is passed to the pipeline.
   UINT ObjCBIndex = -1;
 
-  // A pointer because multople render items may use the same material.
+  // A pointer because multiple render items may use the same material.
   Material* Mat = nullptr;
   
   MeshGeometry* Geo = nullptr;
@@ -96,12 +100,14 @@ private:
   void LoadTextures();
   void BuildDescriptorHeaps();
   std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+  void OnKeyboardInput(const GameTimer& gt);
 };
 
 void TexturingApp::BuildMaterials() {
   auto brick = std::make_unique<Material>();
   brick->Name = "brick";
   brick->MatCBIndex = 0;
+  brick->DiffuseSrvHeapIndex = 0;
   brick->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
   brick->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
   // Relatively smooth.
@@ -110,6 +116,7 @@ void TexturingApp::BuildMaterials() {
   auto stone = std::make_unique<Material>();
   stone->Name = "stone";
   stone->MatCBIndex = 1;
+  stone->DiffuseSrvHeapIndex = 1;
   stone->DiffuseAlbedo = XMFLOAT4(Colors::LightSteelBlue);
   stone->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
   // Rougher than brick.
@@ -118,6 +125,7 @@ void TexturingApp::BuildMaterials() {
   auto tile = std::make_unique<Material>();
   tile->Name = "tile";
   tile->MatCBIndex = 2;
+  tile->DiffuseSrvHeapIndex = 2;
   tile->DiffuseAlbedo = XMFLOAT4(Colors::LightGray);
   tile->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
   // Rougher than brick, but smoother than stone.
@@ -133,12 +141,15 @@ void TexturingApp::UpdateMaterialCBs(const GameTimer& gt) {
   for (auto& e : mMaterials) {
     Material* mat = e.second.get();
     if (mat->NumFramesDirty > 0) {
+      XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
       // The application changed the material. Update the copies stored in constant
       // buffers of each of the frame resources.
       MaterialConstants matConstants;
       matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
       matConstants.FresnelR0 = mat->FresnelR0;
       matConstants.Roughness = mat->Roughness;
+      XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
 
       currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
       mat->NumFramesDirty--;
@@ -161,13 +172,17 @@ void TexturingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std
     cmdList->IASetIndexBuffer(&ibv);
     cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
+    CD3DX12_GPU_DESCRIPTOR_HANDLE textureDesc(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+    textureDesc.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
+
     D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
     // The constant buffer index where the material goes is not stored directly in the
     // RenderItem because it may be shared among many.
     D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
   
-    cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-    cmdList->SetGraphicsRootConstantBufferView(1, matCBAddress);
+    cmdList->SetGraphicsRootDescriptorTable(0, textureDesc);
+    cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
+    cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
     cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
   }
 }
@@ -175,7 +190,8 @@ void TexturingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std
 void TexturingApp::BuildRenderItems()
 {
   auto boxRitem = std::make_unique<RenderItem>();
-  XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
+  XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+  XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
   boxRitem->ObjCBIndex = 0;
   boxRitem->Mat = mMaterials["stone"].get();
   boxRitem->Geo = mGeometries["shapeGeo"].get();
@@ -183,11 +199,11 @@ void TexturingApp::BuildRenderItems()
   boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
   boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
   boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
-  mOpaqueRenderItems.push_back(boxRitem.get());
   mAllRenderItems.push_back(std::move(boxRitem));
 
   auto gridRitem = std::make_unique<RenderItem>();
   gridRitem->World = Math::Identity4x4();
+  XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
   gridRitem->ObjCBIndex = 1;
   gridRitem->Mat = mMaterials["tile"].get();
   gridRitem->Geo = mGeometries["shapeGeo"].get();
@@ -195,9 +211,9 @@ void TexturingApp::BuildRenderItems()
   gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
   gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
   gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
-  mOpaqueRenderItems.push_back(gridRitem.get());
   mAllRenderItems.push_back(std::move(gridRitem));
 
+  XMMATRIX brickTexTransform = XMMatrixScaling(1.0f, 1.0f, 1.0f);
   UINT objCBIndex = 2;
   for (int i = 0; i < 5; ++i) {
     auto leftCylRitem = std::make_unique<RenderItem>();
@@ -212,6 +228,7 @@ void TexturingApp::BuildRenderItems()
     XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
 
     XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
+    XMStoreFloat4x4(&leftCylRitem->TexTransform, brickTexTransform);
     leftCylRitem->ObjCBIndex = objCBIndex++;
     leftCylRitem->Mat = mMaterials["brick"].get();
     leftCylRitem->Geo = mGeometries["shapeGeo"].get();
@@ -219,10 +236,9 @@ void TexturingApp::BuildRenderItems()
     leftCylRitem->IndexCount = leftCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
     leftCylRitem->StartIndexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
     leftCylRitem->BaseVertexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
-    mOpaqueRenderItems.push_back(leftCylRitem.get());
-    mAllRenderItems.push_back(std::move(leftCylRitem));
 
     XMStoreFloat4x4(&rightCylRitem->World, leftCylWorld);
+    XMStoreFloat4x4(&rightCylRitem->TexTransform, brickTexTransform);
     rightCylRitem->ObjCBIndex = objCBIndex++;
     rightCylRitem->Mat = mMaterials["brick"].get();
     rightCylRitem->Geo = mGeometries["shapeGeo"].get();
@@ -230,10 +246,9 @@ void TexturingApp::BuildRenderItems()
     rightCylRitem->IndexCount = rightCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
     rightCylRitem->StartIndexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
     rightCylRitem->BaseVertexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].BaseVertexLocation;
-    mOpaqueRenderItems.push_back(rightCylRitem.get());
-    mAllRenderItems.push_back(std::move(rightCylRitem));
 
     XMStoreFloat4x4(&leftSphereRitem->World, leftSphereWorld);
+    leftSphereRitem->TexTransform = Math::Identity4x4();
     leftSphereRitem->ObjCBIndex = objCBIndex++;
     leftSphereRitem->Mat = mMaterials["stone"].get();
     leftSphereRitem->Geo = mGeometries["shapeGeo"].get();
@@ -241,10 +256,9 @@ void TexturingApp::BuildRenderItems()
     leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
     leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
     leftSphereRitem->BaseVertexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
-    mOpaqueRenderItems.push_back(leftSphereRitem.get());
-    mAllRenderItems.push_back(std::move(leftSphereRitem));
 
     XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
+    rightSphereRitem->TexTransform = Math::Identity4x4();
     rightSphereRitem->ObjCBIndex = objCBIndex++;
     rightSphereRitem->Mat = mMaterials["stone"].get();
     rightSphereRitem->Geo = mGeometries["shapeGeo"].get();
@@ -252,8 +266,15 @@ void TexturingApp::BuildRenderItems()
     rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
     rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
     rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
-    mOpaqueRenderItems.push_back(rightSphereRitem.get());
+
+    mAllRenderItems.push_back(std::move(leftCylRitem));
+    mAllRenderItems.push_back(std::move(rightCylRitem));
+    mAllRenderItems.push_back(std::move(leftSphereRitem));
     mAllRenderItems.push_back(std::move(rightSphereRitem));
+  }
+
+  for (auto& renderItem : mAllRenderItems) {
+    mOpaqueRenderItems.push_back(renderItem.get());
   }
 }
 
@@ -263,8 +284,10 @@ void TexturingApp::UpdateObjectCBs(const GameTimer& gt) {
   for (auto& renderItem : mAllRenderItems) {
     if (renderItem->NumFramesDirty > 0) {
       XMMATRIX world = XMLoadFloat4x4(&renderItem->World);
+      XMMATRIX texTransform = XMLoadFloat4x4(&renderItem->TexTransform);
       ObjectConstants objConstants;
       XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+      XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
       // Copy to upload buffer for eventual transfer to the constant buffer.
       currObjectCB->CopyData(renderItem->ObjCBIndex, objConstants);
       renderItem->NumFramesDirty--;
@@ -290,8 +313,8 @@ void TexturingApp::UpdateCamera(const GameTimer& gt) {
   // x = r * cos(theta)
   // y = r * sin(theta)
   mEyePos.x = (mRadius * sinf(mPhi)) * cosf(mTheta);
-  mEyePos.y = (mRadius * sinf(mPhi)) * sinf(mTheta);
-  mEyePos.z = mRadius * cosf(mPhi);
+  mEyePos.z = (mRadius * sinf(mPhi)) * sinf(mTheta);
+  mEyePos.y = mRadius * cosf(mPhi);
 
   // Orthonormal basis of view space.
   XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
@@ -308,19 +331,33 @@ void TexturingApp::UpdateCamera(const GameTimer& gt) {
 // application will bind to the pipeline and that shaders will access on the next and 
 // subsequent draw calls.
 void TexturingApp::BuildRootSignature() {
-  CD3DX12_ROOT_PARAMETER slotRootParameter[3];
-  // Argument is shader register number.
-  slotRootParameter[0].InitAsConstantBufferView(0);
-  slotRootParameter[1].InitAsConstantBufferView(1);
+  CD3DX12_DESCRIPTOR_RANGE texTable;
+  texTable.Init(
+    D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+    // 1 descriptor range.
+    1,
+    // Bound to shader register t0. 
+    0
+  );
+
+  CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+  slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+  // Argument is shader register number: b0, b1, b2.
+  slotRootParameter[1].InitAsConstantBufferView(0);
+  slotRootParameter[2].InitAsConstantBufferView(1);
   // For pass constant buffer; see Draw().
-  slotRootParameter[2].InitAsConstantBufferView(2);
+  slotRootParameter[3].InitAsConstantBufferView(2);
+
+  auto staticSamplers = GetStaticSamplers();
 
   CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
-    // 3 root parameters.
-    3,
+    // 4 root parameters.
+    4,
     slotRootParameter,
-    0,
-    nullptr,
+    // Reserved for static samplers.
+    // TODO: will this bind the samplers to shader registers s0-s5?
+    (UINT) staticSamplers.size(),
+    staticSamplers.data(),
     D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
   );
 
@@ -346,12 +383,13 @@ void TexturingApp::BuildRootSignature() {
 }
 
 void TexturingApp::BuildShadersAndInputLayout() {
-  mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/Texturing/Texturing.hlsl", nullptr, "VS", "vs_5_1");
-  mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/Texturing/Texturing.hlsl", nullptr, "PS", "ps_5_1");
+  mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/Texturing/Texturing.hlsl", nullptr, "VS", "vs_5_0");
+  mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/Texturing/Texturing.hlsl", nullptr, "PS", "ps_5_0");
 
   mInputLayout = {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-    { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    { "TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
   };
 }
 
@@ -416,6 +454,9 @@ void TexturingApp::Draw(const GameTimer &gt) {
   auto cbbv = CurrentBackBufferView();
   auto dsv = DepthStencilView();
   mCommandList->OMSetRenderTargets(1, &cbbv, true, &dsv);
+
+  ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+  mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
   
   mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
@@ -490,7 +531,7 @@ void TexturingApp::UpdateMainPassCB(const GameTimer& gt) {
 
 void TexturingApp::BuildShapeGeometry() {
   GeometryGenerator geoGen;
-  GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);
+  GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
   GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
   GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
   GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
@@ -537,21 +578,25 @@ void TexturingApp::BuildShapeGeometry() {
   for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
     vertices[k].Pos = box.Vertices[i].Position;
     vertices[k].Normal = box.Vertices[i].Normal;
+    vertices[k].TexC = box.Vertices[i].TexC;
   }
 
   for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
     vertices[k].Pos = grid.Vertices[i].Position;
     vertices[k].Normal = grid.Vertices[i].Normal;
+    vertices[k].TexC = grid.Vertices[i].TexC;
   }
 
   for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k) {
     vertices[k].Pos = sphere.Vertices[i].Position;
     vertices[k].Normal = sphere.Vertices[i].Normal;
+    vertices[k].TexC = sphere.Vertices[i].TexC;
   }
 
   for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k) {
     vertices[k].Pos = cylinder.Vertices[i].Position;
     vertices[k].Normal = cylinder.Vertices[i].Normal;
+    vertices[k].TexC = cylinder.Vertices[i].TexC;
   }
 
   std::vector<std::uint16_t> indices;
@@ -614,6 +659,7 @@ bool TexturingApp::Initialize() {
   LoadTextures();
 
   BuildRootSignature();
+  BuildDescriptorHeaps();
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
   BuildMaterials();
@@ -632,6 +678,7 @@ bool TexturingApp::Initialize() {
 }
 
 void TexturingApp::Update(const GameTimer &gt) {
+  OnKeyboardInput(gt);
   UpdateCamera(gt);
 
   // Move to the next frame's resources.
@@ -845,6 +892,8 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TexturingApp::GetStaticSamplers
     anisotropicClamp
   };
 }
+
+void TexturingApp::OnKeyboardInput(const GameTimer& gt) {}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
   try {

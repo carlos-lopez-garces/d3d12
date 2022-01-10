@@ -7,6 +7,7 @@
 // Per-object / per-draw-call constants.
 struct ObjectConstants {
   DirectX::XMFLOAT4X4 World = Math::Identity4x4();
+  DirectX::XMFLOAT4X4 TexTransform = Math::Identity4x4();
 };
 
 // Per-pass / per-frame constants that apply to all objects / draw calls.
@@ -39,6 +40,8 @@ struct Vertex {
 
   // Per-vertex normals are crucial for evaluating lighting models.
   DirectX::XMFLOAT3 Normal;
+
+  DirectX::XMFLOAT2 TexC;
 };
 
 // The frame resource of an application is very specific to its needs.

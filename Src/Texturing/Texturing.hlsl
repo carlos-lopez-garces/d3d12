@@ -1,5 +1,5 @@
 #ifndef NUM_DIR_LIGHTS
-#define NUM_DIR_LIGHTS 1
+#define NUM_DIR_LIGHTS 3
 #endif
 
 #ifndef NUM_POINT_LIGHTS
@@ -12,18 +12,21 @@
 
 #include "Lighting.hlsl"
 
+Texture2D gDiffuseMap : register(t0);
+
+SamplerState gsamPointWrap : register(s0);
+SamplerState gsamPointClamp : register(s1);
+SamplerState gsamLinearWrap : register(s2);
+SamplerState gsamLinearClamp : register(s3);
+SamplerState gsamAnisotropicWrap : register(s4);
+SamplerState gsamAnisotropicClamp : register(s5);
+
 cbuffer cbPerObject : register(b0) {
   float4x4 gWorld;
+  float4x4 gTexTransform;
 };
 
-cbuffer cbMaterial : register(b1)
-{
-  float4 gDiffuseAlbedo;
-  float3 gFresnelR0;
-  float  gRoughness;
-};
-
-cbuffer cbPass : register(b2) {
+cbuffer cbPass : register(b1) {
   float4x4 gView;
   float4x4 gInvView;
   float4x4 gProj;
@@ -47,10 +50,18 @@ cbuffer cbPass : register(b2) {
   Light gLights[MaxLights];
 };
 
+cbuffer cbMaterial : register(b2) {
+  float4 gDiffuseAlbedo;
+  float3 gFresnelR0;
+  float  gRoughness;
+  float4x4 gMatTransform;
+};
+
 struct VertexIn {
   // L stands for local.
   float3 PosL : POSITION;
   float3 NormalL : NORMAL;
+  float2 TexC : TEXCOORD;
 };
 
 struct VertexOut {
@@ -59,6 +70,7 @@ struct VertexOut {
   // W stands for world.
   float3 PosW : POSITION;
   float3 NormalW : NORMAL;
+  float2 TexC : TEXCOORD;
 };
 
 VertexOut VS(VertexIn vin) {
@@ -76,22 +88,27 @@ VertexOut VS(VertexIn vin) {
   // Transform world space position to homogeneous clip space.
   vout.PosH = mul(posW, gViewProj);
 
+  float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+  vout.TexC = mul(texC, gMatTransform);
+
   return vout;
 }
 
 float4 PS(VertexOut pin) : SV_Target{
+  float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+
   // pin.NormalW is an interpolation of the triangle's vertex normals. The interpolated
   // normal may not be normalized.
   pin.NormalW = normalize(pin.NormalW);
 
-  float3 E = normalize(gEyePosW - pin.PosW);
+  float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
   // Ambient component, the result of diffuse reflection of indirect light.
-  float4 ambient = gAmbientLight * gDiffuseAlbedo;
+  float4 ambient = gAmbientLight * diffuseAlbedo;
 
   const float shininess = 1.0f - gRoughness;
   Material mat = { 
-    gDiffuseAlbedo,
+    diffuseAlbedo,
     gFresnelR0,
     shininess
   };
@@ -104,14 +121,14 @@ float4 PS(VertexOut pin) : SV_Target{
     mat,
     pin.PosW,
     pin.NormalW,
-    E,
+    toEyeW,
     shadowFactor
   );
 
   // Evaluate Phong equation.
   float4 litColor = ambient + directLight;
 
-  litColor.a = gDiffuseAlbedo.a;
+  litColor.a = diffuseAlbedo.a;
 
   return litColor;
 };

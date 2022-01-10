@@ -20,6 +20,7 @@
 #include <sstream>
 #include <cassert>
 #include "d3dx12.h"
+#include "Math.h"
 
 // const variables have internal linkage by default; change it to external.
 // Application source code that includes this header will set its value.
@@ -154,6 +155,10 @@ struct Material {
   // of this material in the materials constant buffer.
   int MatCBIndex = -1;
 
+  // Offset into the shader resource views heap where the diffuse map of this material
+  // is.
+  int DiffuseSrvHeapIndex = -1;
+
   // The diffuse albedo specifies the fraction of each of the light's color 
   // components that gets reflected; the rest is absorbed.
   DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -176,6 +181,8 @@ struct Material {
   // This Material will be part of a FrameResource in a constant buffer. If the application
   // modifies it, it has to be updated on the constant buffer of all the frame resources.
   int NumFramesDirty = gNumFrameResources;
+
+  DirectX::XMFLOAT4X4 MatTransform = Math::Identity4x4();
 };
 
 // Subset of Material to be passed to shaders in constant buffers.
@@ -184,6 +191,7 @@ struct MaterialConstants {
   DirectX::XMFLOAT4 DiffuseAlbedo = {1.0f, 1.0f, 1.0f, 1.0f};
   DirectX::XMFLOAT3 FresnelR0 = {0.01f, 0.01f, 0.01f};
   float Roughness = 0.25f;
+  DirectX::XMFLOAT4X4 MatTransform = Math::Identity4x4();
 };
 
 

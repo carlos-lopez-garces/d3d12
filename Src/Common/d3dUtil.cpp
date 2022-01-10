@@ -116,7 +116,8 @@ Microsoft::WRL::ComPtr<ID3DBlob> d3dUtil::CompileShader(
     compileFlags,
     0,
     &byteCode,
-  &errors);
+    &errors
+  );
 
   if (errors != nullptr) {
     OutputDebugStringA((char*)errors->GetBufferPointer());
