@@ -67,6 +67,8 @@ private:
   std::unique_ptr<ShadowMap> mShadowMap;
 
   std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+
+  ComPtr<ID3D12Resource> mRootSignature;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -98,6 +100,7 @@ bool ShadowMappingApp::Initialize() {
   mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(), 2048, 2048);
 
   LoadTextures();
+  BuildRootSignature();
 }
 
 void ShadowMappingApp::LoadTextures() {
@@ -176,5 +179,149 @@ void ShadowMappingApp::LoadTextures() {
   //  &mTextureResource,
 
   //);
+  // ================================================================
+}
+
+void ShadowMappingApp::BuildRootSignature() {
+  // TextureCube gCubeMap : register(t0).
+  CD3DX12_DESCRIPTOR_RANGE texTable0;
+  // 2 descriptors in range, base shader register 0, register space 0.
+  texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+
+  // Texture2D gTextureMaps[10] : register(t2).
+  CD3DX12_DESCRIPTOR_RANGE texTable1;
+  // 10 descriptors in range, base shader register 2, register space 0.
+  texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+
+#define NUM_ROOT_PARAMETERS 5
+  CD3DX12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
+  // CBVs in shader registers 0 and 1 in register space 0.
+  // cbuffer cbPerObject : register(b0).
+  rootParameters[0].InitAsConstantBufferView(0);
+  // cbuffer cbPass : register(b1).
+  rootParameters[1].InitAsConstantBufferView(1);
+  // StructuredBuffer<MaterialData> gMaterialData : register(t0, space1).
+  rootParameters[2].InitAsShaderResourceView(0, 1);
+  rootParameters[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+  rootParameters[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+  auto staticSamplers = GetStaticSamplers();
+
+  CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(
+    NUM_ROOT_PARAMETERS,
+    rootParameters,
+    (UINT)staticSamplers.size(),
+    staticSamplers.data(),
+    D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+  );
+
+  ComPtr<ID3DBlob> serializedRootSignature = nullptr;
+  ComPtr<ID3DBlob> errorBlob = nullptr;
+  HRESULT hr = D3D12SerializeRootSignature(
+    &rootSignatureDesc,
+    D3D_ROOT_SIGNATURE_VERSION_1,
+    serializedRootSignature.GetAddressOf(),
+    errorBlob.GetAddressOf()
+  );
+  if (errorBlob != nullptr) {
+    ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+  }
+  ThrowIfFailed(hr);
+
+  ThrowIfFailed(md3dDevice->CreateRootSignature(
+    0,
+    serializedRootSignature->GetBufferPointer(),
+    serializedRootSignature->GetBufferSize(),
+    IID_PPV_ARGS(mRootSignature.GetAddressOf())
+  ));
+
+  // THIS WAS MY ATTEMPT.
+  // ================================================================
+  // CBV, SRV, and UAV descriptor heaps.
+  //D3D12_DESCRIPTOR_HEAP_DESC cbvSrvUavHeapDesc;
+  //cbvSrvUavHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  //cbvSrvUavHeapDesc.NumDescriptors = 4;
+  //cbvSrvUavHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  //cbvSrvUavHeapDesc.NodeMask = 0;
+  //
+  //ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+  //  &cbvSrvUavHeapDesc,
+  //  IID_PPV_ARGS(&mCbvSrvUavHeap)
+  //));
+  //
+  //#define NUM_ROOT_PARAMETERS 6
+  //
+  //// D3A12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
+  //CD3DX12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
+  //
+  //// TextureCube gCubeMap : register(t0).
+  //// rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  //// rootParameters[0].Descriptor.ShaderRegister = 0;
+  //// rootParameters[0].Descriptor.RegisterSpace = 0;
+  //// rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  //rootParameters[0].InitAsShaderResourceView(0);
+  //
+  //// Texture2D gShadowMap : register(t1).
+  //// rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  //// rootParameters[1].Descriptor.ShaderRegister = 1;
+  //// rootParameters[1].Descriptor.RegisterSpace = 0;
+  //// rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  //rootParameters[1].InitAsShaderResourceView(1);
+  //
+  //// Texture2D gTextureMaps[10] : register(t2).
+  //// rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  //// rootParameters[2].Descriptor.ShaderRegister = 2;
+  //// rootParameters[2].Descriptor.RegisterSpace = 0;
+  //// rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  //rootParameters[2].InitAsShaderResourceView(2);
+  //
+  //// StructuredBuffer<MaterialData> gMaterialData : register(t0, space1).
+  //// rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  //// rootParameters[3].Descriptor.ShaderRegister = 0;
+  //// rootParameters[3].Descriptor.RegisterSpace = 1;
+  //// rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  //// Register 0 again, but in register space 1 now.
+  //rootParameters[3].InitAsShaderResourceView(0, 1);
+  //
+  //// cbuffer cbPerObject : register(b0).
+  //// rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+  //// rootParameters[4].Descriptor.ShaderRegister = 0;
+  //// rootParameters[4].Descriptor.RegisterSpace = 0;
+  //// rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  //rootParameters[4].InitAsConstantBufferView(0);
+  //
+  //// cbuffer cbPass : register(b1).
+  //// rootParameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+  //// rootParameters[5].Descriptor.ShaderRegister = 1;
+  //// rootParameters[5].Descriptor.RegisterSpace = 0;
+  //// rootParameters[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  //rootParameters[5].InitAsConstantBufferView(1);
+  //
+  //D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+  //rootSignatureDesc.NumParameters = NUM_ROOT_PARAMETERS;
+  //rootSignatureDesc.pParameters = rootParameters;
+  //rootSignatureDesc.NumStaticSamplers = 7;
+  //rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+  //
+  //ID3DBlob *serializedRootSignature;
+  //ThrowIfFailed(D3DCreateBlob(
+  //  sizeof(rootSignatureDesc),
+  //  &serializedRootSignature
+  //));
+  //
+  //ThrowIfFailed(D3D12SerializeRootSignature(
+  //  &rootSignatureDesc,
+  //  D3D_ROOT_SIGNATURE_VERSION_1,
+  //  &serializedRootSignature,
+  //  nullptr
+  //));
+  //
+  //ThrowIfFailed(md3dDevice->CreateRootSignature(
+  //  // Only 1 GPU.
+  //  0,
+  //  serializedRootSignature->GetBufferPointer(),
+  //  serializedRootSignature->GetBufferSize(),
+  //  IID_PPV_ARGS(&mRootSignature)
+  //));
   // ================================================================
 }
