@@ -69,6 +69,23 @@ private:
   std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 
   ComPtr<ID3D12Resource> mRootSignature;
+
+  // SRV heap.
+  ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
+  // CBV heap.
+  ComPtr<ID3D12DescriptorHeap> mCbvDescriptorHeap;
+  // Shader resource.
+  // StructuredBuffer<MaterialData> gMaterialData : register(t0, space1).
+  ComPtr<ID3D12Resource> mSrvResource;
+
+  // Index locations of SRVs in mSrvDescriptorHeap.
+  UINT mSkyTexHeapIndex = 0;
+  UINT mShadowMapHeapIndex = 0;
+  UINT mNullCubeSrvIndex = 0;
+  UINT mNullTexSrvIndex = 0;
+
+  // TODO: what's this SRV for?
+  CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -101,6 +118,7 @@ bool ShadowMappingApp::Initialize() {
 
   LoadTextures();
   BuildRootSignature();
+  BuildDescriptorHeaps();
 }
 
 void ShadowMappingApp::LoadTextures() {
@@ -323,5 +341,139 @@ void ShadowMappingApp::BuildRootSignature() {
   //  serializedRootSignature->GetBufferSize(),
   //  IID_PPV_ARGS(&mRootSignature)
   //));
+  // ================================================================
+}
+
+void ShadowMappingApp::BuildDescriptorHeaps() {
+  D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+  // TODO: why do we need 14?
+  srvHeapDesc.NumDescriptors = 14;
+  srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
+  // Fill out the SRV heap.
+  CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(
+    mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart()
+  );
+
+  std::vector<ComPtr<ID3D12Resource>> tex2DList = {
+    mTextures["bricksDiffuseMap"]->Resource,
+    mTextures["bricksNormalMap"]->Resource,
+    mTextures["tileDiffuseMap"]->Resource,
+    mTextures["tileNormalMap"]->Resource,
+    mTextures["defaultDiffuseMap"]->Resource,
+    mTextures["defaultNormalMap"]->Resource
+  };
+  auto skyCubeMap = mTextures["skyCubeMap"]->Resource;
+
+  // Create SRVs for textures in SRV heap.
+  D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+  srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srvDesc.Texture2D.MostDetailedMip = 0;
+  srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+  for (UINT i = 0; i < (UINT)tex2DList.size(); ++i) {
+    // hDescriptor is pointing at the start of the block in the SRV heap where
+    // we are going to create this SRV.
+    srvDesc.Format = tex2DList[i]->GetDesc().Format;
+    srvDesc.Texture2D.MipLevels = tex2DList[i]->GetDesc().MipLevels;
+    md3dDevice->CreateShaderResourceView(tex2DList[i].Get(), &srvDesc, hDescriptor);
+    // Advance hDescriptor to point to the block where the next SRV will be created.
+    hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+  }
+
+  // SRV for the sky cubemap.
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+  srvDesc.TextureCube.MostDetailedMip = 0;
+  srvDesc.TextureCube.MipLevels = skyCubeMap->GetDesc().MipLevels;
+  srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
+  srvDesc.Format = skyCubeMap->GetDesc().Format;
+  md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);
+
+  // Save heap indices of SRVs.
+  mSkyTexHeapIndex = (UINT)tex2DList.size();
+  mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
+  mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
+  mNullTexSrvIndex = mNullCubeSrvIndex + 1;
+
+  auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+  auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+  auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+  // TODO: what's this SRV for?
+  auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
+  mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
+  md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+  nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  srvDesc.Texture2D.MostDetailedMip = 0;
+  srvDesc.Texture2D.MipLevels = 1;
+  srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+  md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+
+  mShadowMap->BuildDescriptors(
+    CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+    CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+    CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize)
+  );
+
+  // THIS WAS MY ATTEMPT.
+  // ================================================================
+
+  // SRV heap.
+  D3D12_DESCRIPTOR_HEAP_DESC srvDescriptorHeapDesc;
+  srvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  srvDescriptorHeapDesc.NumDescriptors = 1;
+  srvDescriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  srvDescriptorHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &srvDescriptorHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)
+  ));
+
+  // Shader resource.
+  // StructuredBuffer<MaterialData> gMaterialData : register(t0, space1).
+  CD3DX12_RESOURCE_DESC srvResource;
+  srvResource.Alignment = 0;
+  srvResource.DepthOrArraySize = 1;
+  srvResource.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  srvResource.Flags = D3D12_RESOURCE_FLAG_NONE;
+  srvResource.Format = DXGI_FORMAT_UNKNOWN;
+  // TODO: more ...
+  CD3DX12_HEAP_PROPERTIES srvHeapProperties;
+  srvHeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  ThrowIfFailed(md3dDevice->CreateCommittedResource(
+    &srvHeapProperties,
+    D3D12_HEAP_FLAG_NONE,
+    &srvResource,
+    D3D12_RESOURCE_STATE_GENERIC_READ,
+    nullptr,
+    IID_PPV_ARGS(mSrvResource.GetAddressOf())
+  ));
+
+  // SRV.
+  D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
+  srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+  srvDesc.Shader4ComponentMapping = D3D12_SHADER_COMPONENT_MAPPING_FROM_MEMORY_COMPONENT_0;
+  // TODO.
+  srvDesc.Buffer;
+  md3dDevice->CreateShaderResourceView(
+    mSrvResource.Get(),
+    &srvDesc,
+    mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart()
+  );
+
+  // CBV heap.
+  D3D12_DESCRIPTOR_HEAP_DESC cbvDescriptorHeapDesc;
+  cbvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  cbvDescriptorHeapDesc.NumDescriptors = 2;
+  cbvDescriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  cbvDescriptorHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &cbvDescriptorHeapDesc, IID_PPV_ARGS(mCbvDescriptorHeap.GetAddressOf())
+  ));
+
   // ================================================================
 }
