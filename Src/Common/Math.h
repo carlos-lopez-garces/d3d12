@@ -16,4 +16,6 @@ namespace Math {
 	template<typename T> T Clamp(const T& x, const T& low, const T& high) {
 		return (x < low) ? low : (x > high ? high : x);
 	}
+
+	static const float Infinity;
 }
