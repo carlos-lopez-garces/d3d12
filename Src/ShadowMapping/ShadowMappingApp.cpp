@@ -92,6 +92,8 @@ private:
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+
+  std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -128,6 +130,7 @@ bool ShadowMappingApp::Initialize() {
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
   BuildSkullGeometry();
+  BuildMaterials();
 
   return true;
 }
@@ -746,4 +749,57 @@ void ShadowMappingApp::BuildSkullGeometry() {
   geo->DrawArgs["skull"] = submesh;
 
   mGeometries[geo->Name] = std::move(geo);
+}
+
+void ShadowMappingApp::BuildMaterials() {
+  auto bricks = std::make_unique<Material>();
+  bricks->Name = "bricks";
+  bricks->MatCBIndex = 0;
+  bricks->DiffuseSrvHeapIndex = 0;
+  bricks->NormalSrvHeapIndex = 1;
+  bricks->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+  bricks->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+  bricks->Roughness = 0.3f;
+
+  auto tile = std::make_unique<Material>();
+  tile->Name = "tile";
+  tile->MatCBIndex = 1;
+  tile->DiffuseSrvHeapIndex = 2;
+  tile->NormalSrvHeapIndex = 3;
+  tile->DiffuseAlbedo = XMFLOAT4(0.9f, 0.9f, 0.9f, 1.0f);
+  tile->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+  tile->Roughness = 0.1f;
+
+  auto mirror = std::make_unique<Material>();
+  mirror->Name = "mirror";
+  mirror->MatCBIndex = 2;
+  mirror->DiffuseSrvHeapIndex = 4;
+  mirror->NormalSrvHeapIndex = 5;
+  mirror->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+  mirror->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
+  mirror->Roughness = 0.1f;
+
+  auto skullMat = std::make_unique<Material>();
+  skullMat->Name = "skullMat";
+  skullMat->MatCBIndex = 3;
+  skullMat->DiffuseSrvHeapIndex = 4;
+  skullMat->NormalSrvHeapIndex = 5;
+  skullMat->DiffuseAlbedo = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+  skullMat->FresnelR0 = XMFLOAT3(0.6f, 0.6f, 0.6f);
+  skullMat->Roughness = 0.2f;
+
+  auto sky = std::make_unique<Material>();
+  sky->Name = "sky";
+  sky->MatCBIndex = 4;
+  sky->DiffuseSrvHeapIndex = 6;
+  sky->NormalSrvHeapIndex = 7;
+  sky->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+  sky->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+  sky->Roughness = 1.0f;
+
+  mMaterials["bricks"] = std::move(bricks);
+  mMaterials["tile"] = std::move(tile);
+  mMaterials["mirror"] = std::move(mirror);
+  mMaterials["skullMat"] = std::move(skullMat);
+  mMaterials["sky"] = std::move(sky);
 }
