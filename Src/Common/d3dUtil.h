@@ -159,6 +159,10 @@ struct Material {
   // is.
   int DiffuseSrvHeapIndex = -1;
 
+  // Offset into the shader resource views heap where the normal map of this material
+  // is.
+  int NormalSrvHeapIndex = -1;
+
   // The diffuse albedo specifies the fraction of each of the light's color 
   // components that gets reflected; the rest is absorbed.
   DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
