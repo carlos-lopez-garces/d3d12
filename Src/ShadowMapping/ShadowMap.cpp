@@ -82,10 +82,6 @@ void ShadowMap::OnResize(UINT newWidth, UINT newHeight) {
 
 }
 
-void ShadowMap::BuildDescriptors() {
-
-}
-
 void ShadowMap::BuildResource() {
   D3D12_RESOURCE_DESC resourceDesc;
   ZeroMemory(&resourceDesc, sizeof(D3D12_RESOURCE_DESC));
@@ -112,9 +108,11 @@ void ShadowMap::BuildResource() {
   clearValue.DepthStencil.Depth = 1.0;
   clearValue.DepthStencil.Stencil = 0;
 
+  CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
   ThrowIfFailed(md3dDevice->CreateCommittedResource(
     // The hardware creates a depth buffer out of this texture. No need for CPU access.
-    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+    &heapProperties,
     D3D12_HEAP_FLAG_NONE,
     &resourceDesc,
     // Initial resource state.
