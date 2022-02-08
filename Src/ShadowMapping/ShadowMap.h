@@ -19,7 +19,6 @@ public:
   ShadowMap(ID3D12Device* device, UINT width, UINT height);
   ShadowMap(const ShadowMap&) = delete;
   ShadowMap& operator=(const ShadowMap&) = delete;
-  ~ShadowMap() = delete;
 
   UINT Width() const;
   UINT Height() const;
