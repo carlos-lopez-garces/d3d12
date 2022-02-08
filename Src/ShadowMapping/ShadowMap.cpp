@@ -19,7 +19,7 @@ UINT ShadowMap::Height() const {
   return mHeight;
 }
 
-ID3D12Resource& ShadowMap::Resource() {
+ID3D12Resource* ShadowMap::Resource() {
   return mShadowMap.Get();
 }
 
@@ -42,45 +42,40 @@ D3D12_RECT ShadowMap::ScissorRect() const {
 }
 
 void ShadowMap::BuildDescriptors(
+  // CPU and GPU handles to location in SRV heap where the shadow map 
+  // descriptor should be created. SRV heap is owned by the caller.
   CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
   CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
+  // Handle to location in DSV heap where the depth-stencil buffer
+  // descriptor should be created. DSV heap is owned by the caller.
   CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv
 ) {
-  // Descriptor heaps.
+  // Create SRV and DSV descriptors at locations supplied by the caller.
+  // The caller owns the SRV and DSV heaps.
 
-  D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {
-    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-    1,
-    D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-    0
-  };
-  md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(srvHeapDesc));
+  mhCpuSrv = hCpuSrv;
+  mhGpuSrv = hGpuSrv;
+  mhCpuDsv = hCpuDsv;
+  BuildDescriptors();
+}
 
-  D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {
-    D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-    1,
-    D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-    0
-  };
-  md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(dsvHeapDesc));
+void ShadowMap::BuildDescriptors() {
+  D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+  srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+  srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srvDesc.Texture2D.MostDetailedMip = 0;
+  srvDesc.Texture2D.MipLevels = 1;
+  srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+  srvDesc.Texture2D.PlaneSlice = 0;
+  md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, mhCpuSrv);
 
-  // Descriptors.
-
-  D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {
-    mFormat,
-    D3D12_SRV_DIMENSION_TEXTURE_2D
-    //?Shader4ComponentMapping,
-    //?
-  };
-  md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, hCpuSrv);
-
-  D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {
-    mFormat,
-    D3D12_DSV_DIMENSION_TEXTURE2D,
-    D3D12_DSV_FLAG_NONE,
-    //?
-  };
-  md3dDevice->CreateDepthStencilView(mShadowMap.Get(), &dsvDesc, hCpuDsv);
+  D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+  dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+  dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+  dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+  dsvDesc.Texture2D.MipSlice = 0;
+  md3dDevice->CreateDepthStencilView(mShadowMap.Get(), &dsvDesc, mhCpuDsv);
 }
 
 void ShadowMap::OnResize(UINT newWidth, UINT newHeight) {
@@ -98,7 +93,7 @@ void ShadowMap::BuildResource() {
   resourceDesc.Alignment = 0;
   resourceDesc.Width = mWidth;
   resourceDesc.Height = mHeight;
-  // I thought thist would be mWidth * mHeight, because I thought this would be total number of pixels.
+  // I thought this would be mWidth * mHeight, because I thought this would be total number of pixels.
   resourceDesc.DepthOrArraySize = 1;
   resourceDesc.MipLevels = 1;
   resourceDesc.Format = mFormat;

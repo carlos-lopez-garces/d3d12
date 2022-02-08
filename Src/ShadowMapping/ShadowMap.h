@@ -24,7 +24,7 @@ public:
   UINT Width() const;
   UINT Height() const;
 
-  ID3D12Resource& Resource();
+  ID3D12Resource* Resource();
 
   // Shader resource view.
   CD3DX12_GPU_DESCRIPTOR_HANDLE Srv() const;
