@@ -86,6 +86,10 @@ private:
 
   // TODO: what's this SRV for?
   CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
+
+  std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+
+  std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -119,6 +123,7 @@ bool ShadowMappingApp::Initialize() {
   LoadTextures();
   BuildRootSignature();
   BuildDescriptorHeaps();
+  BuildShadersAndInputLayout();
 }
 
 void ShadowMappingApp::LoadTextures() {
@@ -476,4 +481,31 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   ));
 
   // ================================================================
+}
+
+void ShadowMappingApp::BuildShadersAndInputLayout() {
+  const D3D_SHADER_MACRO alphaTestDefines[] = {
+		"ALPHA_TEST", "1",
+		NULL, NULL
+	};
+
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Default.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Default.hlsl", nullptr, "PS", "ps_5_1");
+
+  mShaders["shadowVS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Shadows.hlsl", nullptr, "VS", "vs_5_1");
+  mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Shadows.hlsl", nullptr, "PS", "ps_5_1");
+  mShaders["shadowAlphaTestedPS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Shadows.hlsl", alphaTestDefines, "PS", "ps_5_1");
+
+  mShaders["debugVS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/ShadowDebug.hlsl", nullptr, "VS", "vs_5_1");
+  mShaders["debugPS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/ShadowDebug.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["skyVS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Sky.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skyPS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Sky.hlsl", nullptr, "PS", "ps_5_1");
+
+  mInputLayout = {
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+  };
 }
