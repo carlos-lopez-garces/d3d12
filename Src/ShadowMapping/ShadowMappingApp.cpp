@@ -1184,3 +1184,36 @@ void ShadowMappingApp::DrawRenderItems(
     cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
   }
 }
+
+void ShadowMappingApp::DrawSceneToShadowMap() {
+  D3D12_VIEWPORT shadowMapViewport = mShadowMap->Viewport();
+  mCommandList->RSSetViewports(1, &shadowMapViewport);
+  D3D12_RECT shadowMapScissorRect = mShadowMap->ScissorRect();
+  mCommandList->RSSetScissorRects(1, &shadowMapScissorRect);
+
+  CD3DX12_RESOURCE_BARRIER shadowMapDepthWriteBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+    mShadowMap->Resource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE
+  );
+  mCommandList->ResourceBarrier(1, &shadowMapDepthWriteBarrier);
+
+  mCommandList->ClearDepthStencilView(
+    mShadowMap->Dsv(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr
+  );
+
+  CD3DX12_CPU_DESCRIPTOR_HANDLE shadowMapDepthStencilView = mShadowMap->Dsv();
+  mCommandList->OMSetRenderTargets(0, nullptr, false, &shadowMapDepthStencilView);
+
+  UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+  auto passCB = mCurrFrameResource->PassCB->Resource();
+  D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1*passCBByteSize;
+  mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+
+  mCommandList->SetPipelineState(mPSOs["shadow_opaque"].Get());
+
+  DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+  CD3DX12_RESOURCE_BARRIER shadowMapReadBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+    mShadowMap->Resource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ
+  );
+  mCommandList->ResourceBarrier(1, &shadowMapReadBarrier);
+}
