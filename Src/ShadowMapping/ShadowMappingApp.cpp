@@ -139,6 +139,14 @@ private:
     XMFLOAT3(0.0f, -0.707f, -0.707f)
   };
   XMFLOAT3 mRotatedLightDirections[3];
+
+  // Light's view frustum.
+  float mLightNearZ = 0.0f;
+  float mLightFarZ = 0.0f;
+  XMFLOAT3 mLightPosW;
+  XMFLOAT4X4 mLightView = Math::Identity4x4();
+  XMFLOAT4X4 mLightProj = Math::Identity4x4();
+  XMFLOAT4X4 mShadowTransform = Math::Identity4x4();
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -1364,4 +1372,46 @@ void ShadowMappingApp::UpdateMaterialBuffer(const GameTimer &gt) {
 			mat->NumFramesDirty--;
     }
   }
+}
+
+void ShadowMappingApp::UpdateShadowTransform(const GameTimer &gt) {
+  // The main light's direction vector lies in the lower hemisphere of the scene's bounding sphere.
+  XMVECTOR lightDir = DirectX::XMLoadFloat3(&mRotatedLightDirections[0]);
+  // Translates the light back along its direction vector, positioning it in the upper hemisphere.
+  XMVECTOR lightPos = -2.0 * mSceneBounds.Radius * lightDir;
+  XMVECTOR targetPos = DirectX::XMLoadFloat3(&mSceneBounds.Center);
+  XMVECTOR lightUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  XMMATRIX lightView = DirectX::XMMatrixLookAtLH(lightPos, targetPos, lightUp);
+  // Light's world space position.
+  DirectX::XMStoreFloat3(&mLightPosW, lightPos);
+
+  // Transform bounding sphere to light space.
+  XMFLOAT3 sphereCenterLS;
+  DirectX::XMStoreFloat3(&sphereCenterLS, DirectX::XMVector3TransformCoord(targetPos, lightView));
+
+  // Orthographic frustum. Left, bottom, near, right, top, far.
+  float l = sphereCenterLS.x - mSceneBounds.Radius;
+  float b = sphereCenterLS.y - mSceneBounds.Radius;
+  float n = sphereCenterLS.z - mSceneBounds.Radius;
+  float r = sphereCenterLS.x + mSceneBounds.Radius;
+  float t = sphereCenterLS.y + mSceneBounds.Radius;
+  float f = sphereCenterLS.z + mSceneBounds.Radius;
+
+  mLightNearZ = n;
+  mLightFarZ = f;
+  // Orthographic projection matrix.
+  XMMATRIX lightProj = DirectX::XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
+
+  // Transform NDC space [-1,+1]^2 to texture space [0,1]^2
+  XMMATRIX T(
+    0.5f, 0.0f, 0.0f, 0.0f,
+    0.0f, -0.5f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f, 0.0f,
+    0.5f, 0.5f, 0.0f, 1.0f
+  );
+
+  XMMATRIX S = lightView * lightProj * T;
+  DirectX::XMStoreFloat4x4(&mLightView, lightView);
+  DirectX::XMStoreFloat4x4(&mLightProj, lightProj);
+  DirectX::XMStoreFloat4x4(&mShadowTransform, S);
 }
