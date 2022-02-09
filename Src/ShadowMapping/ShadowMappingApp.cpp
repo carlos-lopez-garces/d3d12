@@ -94,7 +94,7 @@ private:
 
   std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 
-  ComPtr<ID3D12Resource> mRootSignature;
+  ComPtr<ID3D12RootSignature> mRootSignature;
 
   // SRV heap.
   ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap;
@@ -127,6 +127,8 @@ private:
   std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
+
+  std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -166,6 +168,7 @@ bool ShadowMappingApp::Initialize() {
   BuildMaterials();
   BuildRenderItems();
   BuildFrameResources();
+  BuildPSOs();
 
   return true;
 }
@@ -982,4 +985,83 @@ void ShadowMappingApp::BuildFrameResources() {
       md3dDevice.Get(), 2, (UINT)mAllRitems.size(), (UINT)mMaterials.size())
     );
   }
+}
+
+void ShadowMappingApp::BuildPSOs() {
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
+  ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+  opaquePsoDesc.InputLayout = {};
+  opaquePsoDesc.InputLayout.pInputElementDescs = mInputLayout.data();
+  opaquePsoDesc.InputLayout.NumElements = mInputLayout.size();
+  opaquePsoDesc.pRootSignature = mRootSignature.Get();
+  opaquePsoDesc.VS = {};
+  opaquePsoDesc.VS.pShaderBytecode = reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer());
+  opaquePsoDesc.VS.BytecodeLength = mShaders["standardVS"]->GetBufferSize();
+  opaquePsoDesc.PS = {};
+  opaquePsoDesc.PS.pShaderBytecode = reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer());
+  opaquePsoDesc.PS.BytecodeLength = mShaders["opaquePS"]->GetBufferSize();
+  opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+  opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+  opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  opaquePsoDesc.SampleMask = UINT_MAX;
+  opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  opaquePsoDesc.NumRenderTargets = 1;
+  opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+  opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+  opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+  opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+    &opaquePsoDesc,
+    IID_PPV_ARGS(&mPSOs["opaque"])
+  ));
+
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = opaquePsoDesc;
+  smapPsoDesc.RasterizerState.DepthBias = 100000;
+  smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
+  smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
+  smapPsoDesc.pRootSignature = mRootSignature.Get();
+  smapPsoDesc.VS = {
+    reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
+    mShaders["shadowVS"]->GetBufferSize()
+  };
+  smapPsoDesc.PS = {
+    reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
+    mShaders["shadowOpaquePS"]->GetBufferSize()
+  };
+
+  smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
+  smapPsoDesc.NumRenderTargets = 0;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+    &smapPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque"]))
+  );
+
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC debugPsoDesc = opaquePsoDesc;
+  debugPsoDesc.pRootSignature = mRootSignature.Get();
+  debugPsoDesc.VS = {
+      reinterpret_cast<BYTE*>(mShaders["debugVS"]->GetBufferPointer()),
+      mShaders["debugVS"]->GetBufferSize()
+  };
+  debugPsoDesc.PS = {
+      reinterpret_cast<BYTE*>(mShaders["debugPS"]->GetBufferPointer()),
+      mShaders["debugPS"]->GetBufferSize()
+  };
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+    &debugPsoDesc, IID_PPV_ARGS(&mPSOs["debug"]))
+  );
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = opaquePsoDesc;
+	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	skyPsoDesc.pRootSignature = mRootSignature.Get();
+	skyPsoDesc.VS = {
+		reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+		mShaders["skyVS"]->GetBufferSize()
+	};
+	skyPsoDesc.PS = {
+		reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+		mShaders["skyPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+    &skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"]))
+  );
 }
