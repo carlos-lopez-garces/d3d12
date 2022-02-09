@@ -1072,3 +1072,24 @@ void ShadowMappingApp::BuildPSOs() {
     &skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"]))
   );
 }
+
+void ShadowMappingApp::CreateRtvAndDsvDescriptorHeaps()
+{
+  D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+  rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
+  rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+  rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  rtvHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf()))
+  );
+
+  D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+  dsvHeapDesc.NumDescriptors = 2;
+  dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+  dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  dsvHeapDesc.NodeMask = 0;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+    &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf()))
+  );
+}
