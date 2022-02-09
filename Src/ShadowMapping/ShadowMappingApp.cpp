@@ -131,6 +131,14 @@ private:
   int mCurrFrameResourceIndex = 0;
 
   std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
+
+  float mLightRotationAngle = 0.0f;
+  XMFLOAT3 mBaseLightDirections[3] = {
+    XMFLOAT3(0.57735f, -0.57735f, 0.57735f),
+    XMFLOAT3(-0.57735f, -0.57735f, 0.57735f),
+    XMFLOAT3(0.0f, -0.707f, -0.707f)
+  };
+  XMFLOAT3 mRotatedLightDirections[3];
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -1292,4 +1300,33 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> ShadowMappingApp::GetStaticSamp
     anisotropicClamp,
     shadow 
   };
+}
+
+void ShadowMappingApp::Update(const GameTimer &gt) {
+  OnKeyboardInput(gt);
+
+  mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
+  mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+
+  if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
+    HANDLE eventHandle = CreateEventExW(nullptr, nullptr, false, EVENT_ALL_ACCESS);
+    ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
+    WaitForSingleObject(eventHandle, INFINITE);
+    CloseHandle(eventHandle);
+  }
+
+  mLightRotationAngle += 0.1f * gt.DeltaTime();
+  XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);
+  for(int i = 0; i < 3; ++i) {
+    XMVECTOR lightDir = DirectX::XMLoadFloat3(&mBaseLightDirections[i]);
+    lightDir = DirectX::XMVector3TransformNormal(lightDir, R);
+    DirectX::XMStoreFloat3(&mRotatedLightDirections[i], lightDir);
+  }
+
+  AnimateMaterials(gt);
+	UpdateObjectCBs(gt);
+	UpdateMaterialBuffer(gt);
+  UpdateShadowTransform(gt);
+	UpdateMainPassCB(gt);
+  UpdateShadowPassCB(gt);
 }
