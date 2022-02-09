@@ -127,6 +127,8 @@ private:
   std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
+  FrameResource *mCurrFrameResource = nullptr;
+  int mCurrFrameResourceIndex = 0;
 
   std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 };
@@ -1092,4 +1094,71 @@ void ShadowMappingApp::CreateRtvAndDsvDescriptorHeaps()
   ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
     &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf()))
   );
+}
+
+void ShadowMappingApp::Draw(const GameTimer &gt) {
+  auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+  ThrowIfFailed(cmdListAlloc->Reset());
+  
+  ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
+
+  ID3D12DescriptorHeap *descriptorHeaps[] = {
+    mSrvDescriptorHeap.Get()
+  };
+  mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+  mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+  auto matBuffer = mCurrFrameResource->MaterialBuffer->Resource();
+  mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
+  mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);
+  mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+  DrawSceneToShadowMap();
+
+  mCommandList->RSSetViewports(1, &mScreenViewport);
+  mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+  CD3DX12_RESOURCE_BARRIER backBufferRTBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+    CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET
+  );
+  mCommandList->ResourceBarrier(1, &backBufferRTBarrier);
+  mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+  mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+  mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+  auto passCB = mCurrFrameResource->PassCB->Resource();
+  mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+
+  CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+  skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
+  mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+
+  mCommandList->SetPipelineState(mPSOs["opaque"].Get());
+  DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
+  mCommandList->SetPipelineState(mPSOs["debug"].Get());
+  DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+
+	mCommandList->SetPipelineState(mPSOs["sky"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
+
+  CD3DX12_RESOURCE_BARRIER backBufferPresentBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+    CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
+  );
+  mCommandList->ResourceBarrier(1, &backBufferPresentBarrier);
+
+  ThrowIfFailed(mCommandList->Close());
+
+  ID3D12CommandList* cmdsLists[] = {
+    mCommandList.Get()
+  };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+  ThrowIfFailed(mSwapChain->Present(0, 0));
+	mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
+
+  mCurrFrameResource->Fence = ++mCurrentFence;
+
+  mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
