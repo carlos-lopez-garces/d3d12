@@ -1346,3 +1346,22 @@ void ShadowMappingApp::UpdateObjectCBs(const GameTimer &gt) {
     }
   }
 }
+
+void ShadowMappingApp::UpdateMaterialBuffer(const GameTimer &gt) {
+  auto currMaterialBuffer = mCurrFrameResource->MaterialBuffer.get();
+  for (auto &entry : mMaterials) {
+    Material *mat = entry.second.get();
+    if (mat->NumFramesDirty > 0) {
+      XMMATRIX matTransform = DirectX::XMLoadFloat4x4(&mat->MatTransform);
+      MaterialData matData;
+      matData.DiffuseAlbedo = mat->DiffuseAlbedo;
+      matData.FresnelR0 = mat->FresnelR0;
+			matData.Roughness = mat->Roughness;
+			DirectX::XMStoreFloat4x4(&matData.MatTransform, DirectX::XMMatrixTranspose(matTransform));
+			matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+			matData.NormalMapIndex = mat->NormalSrvHeapIndex;
+			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
+			mat->NumFramesDirty--;
+    }
+  }
+}
