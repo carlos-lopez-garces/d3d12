@@ -3,7 +3,7 @@
 #include "../Common/UploadBuffer.h"
 #include "../Common/GeometryGenerator.h"
 #include "../Common/DDSTextureLoader.h"
-//#include "../Common/Camera.h"
+#include "../Common/Camera.h"
 #include "FrameResource.h"
 #include "ShadowMap.h"
 
@@ -88,7 +88,7 @@ private:
   DirectX::BoundingSphere mSceneBounds;
 
   // TODO: implement Camera.
-  // Camera mCamera;
+  Camera mCamera;
 
   std::unique_ptr<ShadowMap> mShadowMap;
 
@@ -147,6 +147,8 @@ private:
   XMFLOAT4X4 mLightView = Math::Identity4x4();
   XMFLOAT4X4 mLightProj = Math::Identity4x4();
   XMFLOAT4X4 mShadowTransform = Math::Identity4x4();
+
+  PassConstants mMainPassCB;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -1414,4 +1416,43 @@ void ShadowMappingApp::UpdateShadowTransform(const GameTimer &gt) {
   DirectX::XMStoreFloat4x4(&mLightView, lightView);
   DirectX::XMStoreFloat4x4(&mLightProj, lightProj);
   DirectX::XMStoreFloat4x4(&mShadowTransform, S);
+}
+
+void ShadowMappingApp::UpdateMainPassCB(const GameTimer &gt) {
+  XMMATRIX view = mCamera.GetView();
+  XMMATRIX proj = mCamera.GetProj();
+  XMMATRIX viewProj = DirectX::XMMatrixMultiply(view, proj);
+  XMVECTOR viewDeterminant = DirectX::XMMatrixDeterminant(proj);
+  XMMATRIX invView = DirectX::XMMatrixInverse(&viewDeterminant, proj);
+  XMVECTOR projDeterminant = DirectX::XMMatrixDeterminant(proj);
+  XMMATRIX invProj = DirectX::XMMatrixInverse(&projDeterminant, proj);
+  XMVECTOR viewProjDeterminant = DirectX::XMMatrixDeterminant(viewProj);
+  XMMATRIX invViewProj = DirectX::XMMatrixInverse(&viewProjDeterminant, viewProj);
+  XMMATRIX shadowTransform = DirectX::XMLoadFloat4x4(&mShadowTransform);
+
+  XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+  XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(shadowTransform));
+
+  mMainPassCB.EyePosW = mCamera.GetPosition3f();
+  mMainPassCB.RenderTargetSize = XMFLOAT2((float) mClientWidth, (float) mClientHeight);
+  mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
+  mMainPassCB.NearZ = 1.0f;
+  mMainPassCB.FarZ = 1000.0f;
+  mMainPassCB.TotalTime = gt.TotalTime();
+  mMainPassCB.DeltaTime = gt.DeltaTime();
+  mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+  mMainPassCB.Lights[0].Direction = mRotatedLightDirections[0];
+  mMainPassCB.Lights[0].Strength = { 0.9f, 0.8f, 0.7f };
+	mMainPassCB.Lights[1].Direction = mRotatedLightDirections[1];
+	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
+	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
+	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+
+  auto currPassCB = mCurrFrameResource->PassCB.get();
+  currPassCB->CopyData(0, mMainPassCB);
 }
