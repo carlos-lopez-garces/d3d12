@@ -1330,3 +1330,19 @@ void ShadowMappingApp::Update(const GameTimer &gt) {
 	UpdateMainPassCB(gt);
   UpdateShadowPassCB(gt);
 }
+
+void ShadowMappingApp::UpdateObjectCBs(const GameTimer &gt) {
+  auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+  for (auto &ritem : mAllRitems) {
+    if (ritem->NumFramesDirty > 0) {
+      XMMATRIX world = DirectX::XMLoadFloat4x4(&ritem->World);
+      XMMATRIX texTransform = DirectX::XMLoadFloat4x4(&ritem->TexTransform);
+      ObjectConstants objConstants;
+      DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(world));
+      DirectX::XMStoreFloat4x4(&objConstants.TexTransform, DirectX::XMMatrixTranspose(texTransform));
+      objConstants.MaterialIndex = ritem->Mat->MatCBIndex;
+      currObjectCB->CopyData(ritem->ObjCBIndex, objConstants);
+      ritem->NumFramesDirty--;
+    }
+  }
+}
