@@ -170,6 +170,13 @@ bool ShadowMappingApp::Initialize() {
   BuildFrameResources();
   BuildPSOs();
 
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList *cmdsLists[] = {
+    mCommandList.Get()
+  };
+  mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+  FlushCommandQueue();
+
   return true;
 }
 
