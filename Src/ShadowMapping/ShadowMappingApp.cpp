@@ -87,7 +87,6 @@ private:
   // Contains every vertex of the scene.
   DirectX::BoundingSphere mSceneBounds;
 
-  // TODO: implement Camera.
   Camera mCamera;
 
   std::unique_ptr<ShadowMap> mShadowMap;
@@ -149,6 +148,7 @@ private:
   XMFLOAT4X4 mShadowTransform = Math::Identity4x4();
 
   PassConstants mMainPassCB;
+  PassConstants mShadowPassCB;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -173,7 +173,7 @@ bool ShadowMappingApp::Initialize() {
   ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
   // TODO.
-  // mCamera.SetPosition(0.0f, 2.0f, -15.0f);
+  mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 
   // Fixed resolution? Yes, because what the light source sees is independent of
   // what the camera sees, the size of the window, and the size of the viewport.
@@ -1455,4 +1455,34 @@ void ShadowMappingApp::UpdateMainPassCB(const GameTimer &gt) {
 
   auto currPassCB = mCurrFrameResource->PassCB.get();
   currPassCB->CopyData(0, mMainPassCB);
+}
+
+void ShadowMappingApp::UpdateShadowPassCB(const GameTimer &gt) {
+  XMMATRIX view = mCamera.GetView();
+  XMMATRIX proj = mCamera.GetProj();
+  XMMATRIX viewProj = DirectX::XMMatrixMultiply(view, proj);
+  XMVECTOR viewDeterminant = DirectX::XMMatrixDeterminant(proj);
+  XMMATRIX invView = DirectX::XMMatrixInverse(&viewDeterminant, proj);
+  XMVECTOR projDeterminant = DirectX::XMMatrixDeterminant(proj);
+  XMMATRIX invProj = DirectX::XMMatrixInverse(&projDeterminant, proj);
+  XMVECTOR viewProjDeterminant = DirectX::XMMatrixDeterminant(viewProj);
+  XMMATRIX invViewProj = DirectX::XMMatrixInverse(&viewProjDeterminant, viewProj);
+
+  UINT w = mShadowMap->Width();
+  UINT h = mShadowMap->Height();
+
+  XMStoreFloat4x4(&mShadowPassCB.View, XMMatrixTranspose(view));
+  XMStoreFloat4x4(&mShadowPassCB.InvView, XMMatrixTranspose(invView));
+  XMStoreFloat4x4(&mShadowPassCB.Proj, XMMatrixTranspose(proj));
+  XMStoreFloat4x4(&mShadowPassCB.InvProj, XMMatrixTranspose(invProj));
+  XMStoreFloat4x4(&mShadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
+  XMStoreFloat4x4(&mShadowPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+  mShadowPassCB.EyePosW = mLightPosW;
+  mShadowPassCB.RenderTargetSize = XMFLOAT2((float) w, (float) h);
+  mShadowPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / w, 1.0f / h);
+  mShadowPassCB.NearZ = mLightNearZ;
+  mShadowPassCB.FarZ = mLightFarZ;
+
+  auto currPassCB = mCurrFrameResource->PassCB.get();
+  currPassCB->CopyData(1, mShadowPassCB);
 }
