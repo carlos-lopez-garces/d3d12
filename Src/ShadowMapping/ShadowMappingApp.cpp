@@ -1125,7 +1125,9 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   mCommandList->ResourceBarrier(1, &backBufferRTBarrier);
   mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
   mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-  mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+  D3D12_CPU_DESCRIPTOR_HANDLE backBufferViewHandle = CurrentBackBufferView();
+  D3D12_CPU_DESCRIPTOR_HANDLE depthStencilViewHandle = DepthStencilView();
+  mCommandList->OMSetRenderTargets(1, &backBufferViewHandle, true, &depthStencilViewHandle);
 
   auto passCB = mCurrFrameResource->PassCB->Resource();
   mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
@@ -1161,4 +1163,24 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   mCurrFrameResource->Fence = ++mCurrentFence;
 
   mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+}
+
+void ShadowMappingApp::DrawRenderItems(
+  ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems
+) {
+  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+
+  auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+
+  for (size_t i = 0; i < ritems.size(); ++i) {
+    auto ri = ritems[i];
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView = ri->Geo->VertexBufferView();
+    D3D12_INDEX_BUFFER_VIEW indexBufferView = ri->Geo->IndexBufferView();
+    cmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
+    cmdList->IASetIndexBuffer(&indexBufferView);
+    cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+    D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
+    cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+    cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+  }
 }
