@@ -149,6 +149,8 @@ private:
 
   PassConstants mMainPassCB;
   PassConstants mShadowPassCB;
+
+  POINT mLastMousePos;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -1485,4 +1487,50 @@ void ShadowMappingApp::UpdateShadowPassCB(const GameTimer &gt) {
 
   auto currPassCB = mCurrFrameResource->PassCB.get();
   currPassCB->CopyData(1, mShadowPassCB);
+}
+
+void ShadowMappingApp::AnimateMaterials(const GameTimer& gt) {}
+
+void ShadowMappingApp::OnResize() {
+  D3DApp::OnResize();
+  mCamera.SetLens(0.25f * Math::Pi, AspectRatio(), 1.0f, 1000.0f);
+}
+
+void ShadowMappingApp::OnMouseDown(WPARAM btnState, int x, int y) {
+  mLastMousePos.x = x;
+  mLastMousePos.y = y;
+  SetCapture(mhMainWnd);
+}
+
+void ShadowMappingApp::OnMouseUp(WPARAM btnState, int x, int y) {
+  ReleaseCapture();
+}
+
+void ShadowMappingApp::OnMouseMove(WPARAM btnState, int x, int y) {
+  if((btnState & MK_LBUTTON) != 0) {
+    float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
+    float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+    mCamera.Pitch(dy);
+    mCamera.RotateY(dx);
+  }
+  mLastMousePos.x = x;
+  mLastMousePos.y = y;
+}
+
+void ShadowMappingApp::OnKeyboardInput(const GameTimer &gt) {
+	const float dt = gt.DeltaTime();
+
+	if(GetAsyncKeyState('W') & 0x8000)
+		mCamera.Walk(10.0f*dt);
+
+	if(GetAsyncKeyState('S') & 0x8000)
+		mCamera.Walk(-10.0f*dt);
+
+	if(GetAsyncKeyState('A') & 0x8000)
+		mCamera.Strafe(-10.0f*dt);
+
+	if(GetAsyncKeyState('D') & 0x8000)
+		mCamera.Strafe(10.0f*dt);
+
+	mCamera.UpdateViewMatrix();
 }
