@@ -78,10 +78,6 @@ void ShadowMap::BuildDescriptors() {
   md3dDevice->CreateDepthStencilView(mShadowMap.Get(), &dsvDesc, mhCpuDsv);
 }
 
-void ShadowMap::OnResize(UINT newWidth, UINT newHeight) {
-
-}
-
 void ShadowMap::BuildResource() {
   D3D12_RESOURCE_DESC resourceDesc;
   ZeroMemory(&resourceDesc, sizeof(D3D12_RESOURCE_DESC));
@@ -120,4 +116,13 @@ void ShadowMap::BuildResource() {
     &clearValue,
     IID_PPV_ARGS(&mShadowMap)
   ));
+}
+
+void ShadowMap::OnResize(UINT newWidth, UINT newHeight) {
+  if((mWidth != newWidth) || (mHeight != newHeight)) {
+    mWidth = newWidth;
+    mHeight = newHeight;
+    BuildResource();
+    BuildDescriptors();
+  }
 }
