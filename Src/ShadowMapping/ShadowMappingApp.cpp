@@ -11,6 +11,8 @@ using namespace DirectX;
 using namespace Microsoft::WRL;
 using namespace DirectX::PackedVector;
 
+const int gNumFrameResources = 3;
+
 struct RenderItem {
   RenderItem() = default;
   RenderItem(const RenderItem &) = delete;
@@ -123,6 +125,8 @@ private:
 
   // One layer per PSO.
   std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
+
+  std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -161,6 +165,7 @@ bool ShadowMappingApp::Initialize() {
   BuildSkullGeometry();
   BuildMaterials();
   BuildRenderItems();
+  BuildFrameResources();
 
   return true;
 }
@@ -969,4 +974,12 @@ void ShadowMappingApp::BuildRenderItems() {
 		mAllRitems.push_back(std::move(leftSphereRitem));
 		mAllRitems.push_back(std::move(rightSphereRitem));
 	}
+}
+
+void ShadowMappingApp::BuildFrameResources() {
+  for(int i = 0; i < gNumFrameResources; ++i) {
+    mFrameResources.push_back(std::make_unique<FrameResource>(
+      md3dDevice.Get(), 2, (UINT)mAllRitems.size(), (UINT)mMaterials.size())
+    );
+  }
 }
