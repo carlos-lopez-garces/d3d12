@@ -565,8 +565,8 @@ void ShadowMappingApp::BuildShadersAndInputLayout() {
 		NULL, NULL
 	};
 
-	mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Default.hlsl", nullptr, "VS", "vs_5_1");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Default.hlsl", nullptr, "PS", "ps_5_1");
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/ShadowMapping.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/ShadowMapping.hlsl", nullptr, "PS", "ps_5_1");
 
   mShaders["shadowVS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Shadows.hlsl", nullptr, "VS", "vs_5_1");
   mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Src/ShadowMapping/Shadows.hlsl", nullptr, "PS", "ps_5_1");
@@ -1533,4 +1533,25 @@ void ShadowMappingApp::OnKeyboardInput(const GameTimer &gt) {
 		mCamera.Strafe(10.0f*dt);
 
 	mCamera.UpdateViewMatrix();
+}
+
+int WINAPI WinMain(
+  HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd
+) {
+#if defined(DEBUG) | defined(_DEBUG)
+  _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+  try {
+    ShadowMappingApp app(hInstance);
+    if(!app.Initialize()) {
+      return 0;
+    }
+
+    return app.Run();
+  }
+  catch(DxException& e) {
+    MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+    return 0;
+  }
 }
