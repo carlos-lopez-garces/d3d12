@@ -57,7 +57,7 @@ private:
   virtual void CreateRtvAndDsvDescriptorHeaps() override;
   void BuildShadersAndInputLayout();
   void BuildShapeGeometry();
-  void BuildSkullGeometry();
+  void BuildMainModelGeometry();
   void BuildPSOs();
   void BuildFrameResources();
   void BuildMaterials();
@@ -186,7 +186,7 @@ bool ShadowMappingApp::Initialize() {
   BuildDescriptorHeaps();
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
-  BuildSkullGeometry();
+  BuildMainModelGeometry();
   BuildMaterials();
   BuildRenderItems();
   BuildFrameResources();
@@ -218,8 +218,8 @@ void ShadowMappingApp::LoadTextures() {
   {
       L"Assets/bricks2.dds",
       L"Assets/bricks2_nmap.dds",
-      L"Assets/tile.dds",
-      L"Assets/tile_nmap.dds",
+      L"Assets/sponza_floor_a.dds",
+      L"Assets/sponza_floor_a_normal.dds",
       L"Assets/white1x1.dds",
       L"Assets/default_nmap.dds",
       L"Assets/desertcube1024.dds"
@@ -719,11 +719,11 @@ void ShadowMappingApp::BuildShapeGeometry() {
 	mGeometries[geo->Name] = std::move(geo);
 }
 
-void ShadowMappingApp::BuildSkullGeometry() {
-  std::ifstream fin("Assets/skull.txt");
+void ShadowMappingApp::BuildMainModelGeometry() {
+  std::ifstream fin("Assets/car.txt");
 
   if (!fin) {
-      MessageBox(0, L"Assets/skull.txt not found.", 0, 0);
+      MessageBox(0, L"Assets/car.txt not found.", 0, 0);
       return;
   }
 
@@ -786,7 +786,7 @@ void ShadowMappingApp::BuildSkullGeometry() {
   const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
 
   auto geo = std::make_unique<MeshGeometry>();
-  geo->Name = "skullGeo";
+  geo->Name = "mainModelGeo";
 
   ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
   CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -813,7 +813,7 @@ void ShadowMappingApp::BuildSkullGeometry() {
   submesh.BaseVertexLocation = 0;
   submesh.Bounds = bounds;
 
-  geo->DrawArgs["skull"] = submesh;
+  geo->DrawArgs["mainModel"] = submesh;
 
   mGeometries[geo->Name] = std::move(geo);
 }
@@ -846,14 +846,14 @@ void ShadowMappingApp::BuildMaterials() {
   mirror->FresnelR0 = XMFLOAT3(0.98f, 0.97f, 0.95f);
   mirror->Roughness = 0.1f;
 
-  auto skullMat = std::make_unique<Material>();
-  skullMat->Name = "skullMat";
-  skullMat->MatCBIndex = 3;
-  skullMat->DiffuseSrvHeapIndex = 4;
-  skullMat->NormalSrvHeapIndex = 5;
-  skullMat->DiffuseAlbedo = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-  skullMat->FresnelR0 = XMFLOAT3(0.6f, 0.6f, 0.6f);
-  skullMat->Roughness = 0.2f;
+  auto mainModelMat = std::make_unique<Material>();
+  mainModelMat->Name = "mainModelMat";
+  mainModelMat->MatCBIndex = 3;
+  mainModelMat->DiffuseSrvHeapIndex = 4;
+  mainModelMat->NormalSrvHeapIndex = 5;
+  mainModelMat->DiffuseAlbedo = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+  mainModelMat->FresnelR0 = XMFLOAT3(0.6f, 0.6f, 0.6f);
+  mainModelMat->Roughness = 0.2f;
 
   auto sky = std::make_unique<Material>();
   sky->Name = "sky";
@@ -867,7 +867,7 @@ void ShadowMappingApp::BuildMaterials() {
   mMaterials["bricks"] = std::move(bricks);
   mMaterials["tile"] = std::move(tile);
   mMaterials["mirror"] = std::move(mirror);
-  mMaterials["skullMat"] = std::move(skullMat);
+  mMaterials["mainModelMat"] = std::move(mainModelMat);
   mMaterials["sky"] = std::move(sky);
 }
 
@@ -911,22 +911,22 @@ void ShadowMappingApp::BuildRenderItems() {
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
+	// mRitemLayer[(int)RenderLayer::Opaque].push_back(boxRitem.get());
 	mAllRitems.push_back(std::move(boxRitem));
 
-  auto skullRitem = std::make_unique<RenderItem>();
-  XMStoreFloat4x4(&skullRitem->World, XMMatrixScaling(0.4f, 0.4f, 0.4f)*XMMatrixTranslation(0.0f, 1.0f, 0.0f));
-  skullRitem->TexTransform = Math::Identity4x4();
-  skullRitem->ObjCBIndex = 3;
-  skullRitem->Mat = mMaterials["skullMat"].get();
-  skullRitem->Geo = mGeometries["skullGeo"].get();
-  skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-  skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
-  skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
-  skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+  auto mainModelRitem = std::make_unique<RenderItem>();
+  XMStoreFloat4x4(&mainModelRitem->World, XMMatrixScaling(0.4f, 0.4f, 0.4f)*XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+  mainModelRitem->TexTransform = Math::Identity4x4();
+  mainModelRitem->ObjCBIndex = 3;
+  mainModelRitem->Mat = mMaterials["mainModelMat"].get();
+  mainModelRitem->Geo = mGeometries["mainModelGeo"].get();
+  mainModelRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  mainModelRitem->IndexCount = mainModelRitem->Geo->DrawArgs["mainModel"].IndexCount;
+  mainModelRitem->StartIndexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].StartIndexLocation;
+  mainModelRitem->BaseVertexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
 
-  mRitemLayer[(int)RenderLayer::Opaque].push_back(skullRitem.get());
-  mAllRitems.push_back(std::move(skullRitem));
+  mRitemLayer[(int)RenderLayer::Opaque].push_back(mainModelRitem.get());
+  mAllRitems.push_back(std::move(mainModelRitem));
 
   auto gridRitem = std::make_unique<RenderItem>();
   gridRitem->World = Math::Identity4x4();
@@ -1057,7 +1057,6 @@ void ShadowMappingApp::BuildPSOs() {
     reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
     mShaders["shadowOpaquePS"]->GetBufferSize()
   };
-
   smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
   smapPsoDesc.NumRenderTargets = 0;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
@@ -1406,7 +1405,7 @@ void ShadowMappingApp::UpdateShadowTransform(const GameTimer &gt) {
   // Orthographic projection matrix.
   XMMATRIX lightProj = DirectX::XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
 
-  // Transform NDC space [-1,+1]^2 to texture space [0,1]^2
+  // Transform NDC space [-1,+1]^2 to texture space [0,1]^2.
   XMMATRIX T(
     0.5f, 0.0f, 0.0f, 0.0f,
     0.0f, -0.5f, 0.0f, 0.0f,
@@ -1424,8 +1423,8 @@ void ShadowMappingApp::UpdateMainPassCB(const GameTimer &gt) {
   XMMATRIX view = mCamera.GetView();
   XMMATRIX proj = mCamera.GetProj();
   XMMATRIX viewProj = DirectX::XMMatrixMultiply(view, proj);
-  XMVECTOR viewDeterminant = DirectX::XMMatrixDeterminant(proj);
-  XMMATRIX invView = DirectX::XMMatrixInverse(&viewDeterminant, proj);
+  XMVECTOR viewDeterminant = DirectX::XMMatrixDeterminant(view);
+  XMMATRIX invView = DirectX::XMMatrixInverse(&viewDeterminant, view);
   XMVECTOR projDeterminant = DirectX::XMMatrixDeterminant(proj);
   XMMATRIX invProj = DirectX::XMMatrixInverse(&projDeterminant, proj);
   XMVECTOR viewProjDeterminant = DirectX::XMMatrixDeterminant(viewProj);
@@ -1460,11 +1459,11 @@ void ShadowMappingApp::UpdateMainPassCB(const GameTimer &gt) {
 }
 
 void ShadowMappingApp::UpdateShadowPassCB(const GameTimer &gt) {
-  XMMATRIX view = mCamera.GetView();
-  XMMATRIX proj = mCamera.GetProj();
+  XMMATRIX view = DirectX::XMLoadFloat4x4(&mLightView);
+  XMMATRIX proj = DirectX::XMLoadFloat4x4(&mLightProj);
   XMMATRIX viewProj = DirectX::XMMatrixMultiply(view, proj);
-  XMVECTOR viewDeterminant = DirectX::XMMatrixDeterminant(proj);
-  XMMATRIX invView = DirectX::XMMatrixInverse(&viewDeterminant, proj);
+  XMVECTOR viewDeterminant = DirectX::XMMatrixDeterminant(view);
+  XMMATRIX invView = DirectX::XMMatrixInverse(&viewDeterminant, view);
   XMVECTOR projDeterminant = DirectX::XMMatrixDeterminant(proj);
   XMMATRIX invProj = DirectX::XMMatrixInverse(&projDeterminant, proj);
   XMVECTOR viewProjDeterminant = DirectX::XMMatrixDeterminant(viewProj);
