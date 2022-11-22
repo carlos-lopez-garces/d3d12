@@ -26,6 +26,10 @@ private:
     UINT mCbvSrvDescriptorSize = 0;
 
     std::unique_ptr<Waves> mWaves;
+
+    std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+
+    void LoadTextures();
 };
 
 BlendingApp::BlendingApp(HINSTANCE hInstance) : D3DApp(hInstance) {}
@@ -48,6 +52,7 @@ bool BlendingApp::Initialize() {
     mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
     // TODO: load and build.
+    LoadTextures();
 
     // The first command list has been built. Close it before putting it in the command
     // queue for GPU-side execution. 
@@ -61,6 +66,35 @@ bool BlendingApp::Initialize() {
 
     return true;
 }
+
+void BlendingApp::LoadTextures() {
+    std::vector<std::string> texNames = {
+        "grassTex",
+        "waterTex",
+        "fenceTex"
+    };
+
+    std::vector<std::wstring> texFilenames = {
+        L"Assets/grass.dds",
+        L"Assets/water1.dds",
+        L"Assets/fence.dds",
+    };
+
+    for (int i = 0; i < (int) texNames.size(); ++i) {
+        auto textureMap = std::make_unique<Texture>();
+        textureMap->Name = texNames[i];
+        textureMap->Filename = texFilenames[i];
+        ThrowIfFailed(CreateDDSTextureFromFile12(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            textureMap->Filename.c_str(),
+            textureMap->Resource,
+            textureMap->UploadHeap
+        ));
+        mTextures[textureMap->Name] = std::move(textureMap);
+    }
+}
+
 
 int WINAPI WinMain(
   HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd
