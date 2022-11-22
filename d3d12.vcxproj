@@ -88,11 +88,16 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>C:\Users\carlo\Code\src\github.com\microsoft\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <FxCompile>
+      <ShaderModel>5.1</ShaderModel>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -102,6 +107,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -116,6 +122,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>Default</ConformanceMode>
+      <AdditionalIncludeDirectories>C:\Users\carlo\Code\src\github.com\microsoft\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -128,6 +136,7 @@
     </FxCompile>
     <FxCompile>
       <ShaderType>Effect</ShaderType>
+      <ShaderModel>5.1</ShaderModel>
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -138,6 +147,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -147,9 +157,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Blending\Waves.h" />
+    <ClInclude Include="Src\Common\Camera.h" />
     <ClInclude Include="Src\Common\d3dApp.h" />
     <ClInclude Include="Src\Common\d3dUtil.h" />
     <ClInclude Include="Src\Common\d3dx12.h" />
+    <ClInclude Include="Src\Common\DDSTextureLoader.h" />
     <ClInclude Include="Src\Common\GameTimer.h" />
     <ClInclude Include="Src\Common\GeometryGenerator.h" />
     <ClInclude Include="Src\Common\Math.h" />
@@ -158,17 +171,25 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="Assets\bricks.dds" />
+    <Image Include="Assets\stone.dds" />
+    <Image Include="Assets\tile.dds" />
     <Image Include="d3d12.ico" />
     <Image Include="small.ico" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Src\Blending\BlendingApp.cpp" />
+    <ClCompile Include="Src\Blending\Waves.cpp" />
+    <ClCompile Include="Src\Common\Camera.cpp" />
     <ClCompile Include="Src\Common\d3dApp.cpp" />
     <ClCompile Include="Src\Common\d3dUtil.cpp" />
+    <ClCompile Include="Src\Common\DDSTextureLoader.cpp" />
     <ClCompile Include="Src\Common\GameTimer.cpp" />
     <ClCompile Include="Src\Common\GeometryGenerator.cpp" />
     <ClCompile Include="Src\Common\Math.cpp" />
-    <ClCompile Include="Src\Texturing\FrameResource.cpp" />
-    <ClCompile Include="Src\Texturing\TexturingApp.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="Assets\skull.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
