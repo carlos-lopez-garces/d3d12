@@ -31,9 +31,12 @@ private:
 
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
+    ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+
     void LoadTextures();
 
     void BuildRootSignature();
+    void BuildDescriptorHeaps();
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 };
@@ -60,6 +63,7 @@ bool BlendingApp::Initialize() {
     // TODO: load and build.
     LoadTextures();
     BuildRootSignature();
+    BuildDescriptorHeaps();
 
     // The first command list has been built. Close it before putting it in the command
     // queue for GPU-side execution. 
@@ -150,6 +154,40 @@ void BlendingApp::BuildRootSignature() {
         serializedRootSignature->GetBufferSize(),
         IID_PPV_ARGS(mRootSignature.GetAddressOf())
     ));
+}
+
+void BlendingApp::BuildDescriptorHeaps() {
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 3;
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    // Input: descriptor of heap to create. Output: the heap.
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+        &srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)
+    ));
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+    auto grassTex = mTextures["grassTex"]->Resource;
+	auto waterTex = mTextures["waterTex"]->Resource;
+	auto fenceTex = mTextures["fenceTex"]->Resource;
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = -1;
+
+    srvDesc.Format = grassTex->GetDesc().Format;
+    md3dDevice->CreateShaderResourceView(grassTex.Get(), &srvDesc, heapHandle);
+
+    heapHandle.Offset(1, mCbvSrvDescriptorSize);
+    srvDesc.Format = waterTex->GetDesc().Format;
+    md3dDevice->CreateShaderResourceView(waterTex.Get(), &srvDesc, heapHandle);
+
+    heapHandle.Offset(1, mCbvSrvDescriptorSize);
+    srvDesc.Format = fenceTex->GetDesc().Format;
+    md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, heapHandle);
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
