@@ -29,14 +29,19 @@ private:
 
     std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 
+    std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
     ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+
+    std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
     void LoadTextures();
 
     void BuildRootSignature();
     void BuildDescriptorHeaps();
+    void BuildShadersAndInputLayout();
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 };
@@ -64,6 +69,7 @@ bool BlendingApp::Initialize() {
     LoadTextures();
     BuildRootSignature();
     BuildDescriptorHeaps();
+    BuildShadersAndInputLayout();
 
     // The first command list has been built. Close it before putting it in the command
     // queue for GPU-side execution. 
@@ -188,6 +194,29 @@ void BlendingApp::BuildDescriptorHeaps() {
     heapHandle.Offset(1, mCbvSrvDescriptorSize);
     srvDesc.Format = fenceTex->GetDesc().Format;
     md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, heapHandle);
+}
+
+void BlendingApp::BuildShadersAndInputLayout() {
+    const D3D_SHADER_MACRO defines[] = {
+        "FOG", "1",
+        NULL, NULL
+    };
+
+    const D3D_SHADER_MACRO alphaTestDefines[] = {
+        "FOG", "1",
+        "ALPHA_TEST", "1",
+        NULL, NULL
+    };
+
+    mShaders["standardVS"] = d3dUtil::CompileShader(L"Src/Blending/Blending.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Src/Blending/Blending.hlsl", defines, "PS", "ps_5_1");
+    mShaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Src/Blending/Blending.hlsl", alphaTestDefines, "PS", "ps_5_1");
+
+    mInputLayout = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    };
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
