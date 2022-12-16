@@ -91,6 +91,7 @@ private:
 
     virtual void Update(const GameTimer& gt) override;
     void UpdateCamera(const GameTimer& gt);
+    void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
 
@@ -536,6 +537,8 @@ void BlendingApp::Update(const GameTimer& gt) {
         WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
     }
+
+    AnimateMaterials(gt);
 }
 
 void BlendingApp::UpdateCamera(const GameTimer& gt) {
@@ -550,6 +553,23 @@ void BlendingApp::UpdateCamera(const GameTimer& gt) {
 
 	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
 	XMStoreFloat4x4(&mView, view);
+}
+
+void BlendingApp::AnimateMaterials(const GameTimer& gt) {
+	auto waterMat = mMaterials["water"].get();
+	float& tu = waterMat->MatTransform(3, 0);
+	float& tv = waterMat->MatTransform(3, 1);
+	tu += 0.1f * gt.DeltaTime();
+	tv += 0.02f * gt.DeltaTime();
+	if(tu >= 1.0f) {
+        tu -= 1.0f;
+    }
+	if(tv >= 1.0f) {
+        tv -= 1.0f;
+    }
+	waterMat->MatTransform(3, 0) = tu;
+	waterMat->MatTransform(3, 1) = tv;
+	waterMat->NumFramesDirty = gNumFrameResources;
 }
 
 void BlendingApp::OnKeyboardInput(const GameTimer& gt) {}
