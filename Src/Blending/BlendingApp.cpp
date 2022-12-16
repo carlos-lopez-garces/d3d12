@@ -60,6 +60,24 @@ private:
 
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 
+    int mCurrFrameResourceIndex = 0;
+
+    FrameResource* mCurrFrameResource = nullptr;
+
+    XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
+
+	XMFLOAT4X4 mView = Math::Identity4x4();
+
+	XMFLOAT4X4 mProj = Math::Identity4x4();
+
+    float mTheta = 1.5f*XM_PI;
+
+    float mPhi = XM_PIDIV2 - 0.1f;
+
+    float mRadius = 50.0f;
+
+    POINT mLastMousePos;
+
     void LoadTextures();
 
     void BuildRootSignature();
@@ -70,6 +88,11 @@ private:
     void BuildRenderItems();
     void BuildFrameResources();
     void BuildPSOs();
+
+    virtual void Update(const GameTimer& gt) override;
+    void UpdateCamera(const GameTimer& gt);
+
+    void OnKeyboardInput(const GameTimer& gt);
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 };
@@ -93,7 +116,6 @@ bool BlendingApp::Initialize() {
 
     mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
-    // TODO: build.
     LoadTextures();
     BuildRootSignature();
     BuildDescriptorHeaps();
@@ -500,6 +522,37 @@ void BlendingApp::BuildFrameResources() {
         ));
     }
 }
+
+void BlendingApp::Update(const GameTimer& gt) {
+    OnKeyboardInput(gt);
+	UpdateCamera(gt);
+
+    mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
+    mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+
+    if(mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
+        HANDLE eventHandle = CreateEventExW(nullptr, nullptr, false, EVENT_ALL_ACCESS);
+        ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
+        WaitForSingleObject(eventHandle, INFINITE);
+        CloseHandle(eventHandle);
+    }
+}
+
+void BlendingApp::UpdateCamera(const GameTimer& gt) {
+	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
+	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
+	mEyePos.y = mRadius*cosf(mPhi);
+
+	// Build the view matrix.
+	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
+	XMVECTOR target = XMVectorZero();
+	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+	XMStoreFloat4x4(&mView, view);
+}
+
+void BlendingApp::OnKeyboardInput(const GameTimer& gt) {}
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
