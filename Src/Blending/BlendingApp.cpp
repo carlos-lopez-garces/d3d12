@@ -40,12 +40,15 @@ private:
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
+    std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
+
     void LoadTextures();
 
     void BuildRootSignature();
     void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildGeometry();
+    void BuildPSOs();
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 };
@@ -75,6 +78,7 @@ bool BlendingApp::Initialize() {
     BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
     BuildGeometry();
+    BuildPSOs();
 
     // The first command list has been built. Close it before putting it in the command
     // queue for GPU-side execution. 
@@ -268,7 +272,6 @@ void BlendingApp::BuildGeometry() {
 	terrainGeometry->DrawArgs["grid"] = terrainSubmesh;
 	mGeometries["landGeo"] = std::move(terrainGeometry);
 
-
     std::vector<std::uint16_t> waterIndices(3 * mWaves->TriangleCount());
 	assert(mWaves->VertexCount() < 0x0000ffff);
     int m = mWaves->RowCount();
@@ -341,6 +344,58 @@ void BlendingApp::BuildGeometry() {
 	boxSubmesh.BaseVertexLocation = 0;
 	boxGeometry->DrawArgs["box"] = boxSubmesh;
 	mGeometries["boxGeo"] = std::move(boxGeometry);
+}
+
+void BlendingApp::BuildPSOs() {
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
+    ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+    opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT) mInputLayout.size() };
+    opaquePsoDesc.pRootSignature = mRootSignature.Get();
+    opaquePsoDesc.VS = {
+        reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+        mShaders["standardVS"]->GetBufferSize()
+    };
+    opaquePsoDesc.PS = {
+        reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+        mShaders["opaquePS"]->GetBufferSize()
+    };
+    opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    opaquePsoDesc.SampleMask = UINT_MAX;
+    opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    opaquePsoDesc.NumRenderTargets = 1;
+    opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+    opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+    opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+    opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+    // Take the opaque PSO as base for the transparency PSO and then fill out blend state.
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
+	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+	transparencyBlendDesc.BlendEnable = true;
+	transparencyBlendDesc.LogicOpEnable = false;
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
+
+    // Alpha tested objects.
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
+	alphaTestedPsoDesc.PS = 
+	{ 
+		reinterpret_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer()),
+		mShaders["alphaTestedPS"]->GetBufferSize()
+	};
+	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
