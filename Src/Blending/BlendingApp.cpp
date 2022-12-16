@@ -91,6 +91,7 @@ private:
 
     virtual void Update(const GameTimer& gt) override;
     void UpdateCamera(const GameTimer& gt);
+    void UpdateObjectCBs(const GameTimer& gt);
     void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
@@ -539,6 +540,7 @@ void BlendingApp::Update(const GameTimer& gt) {
     }
 
     AnimateMaterials(gt);
+    UpdateObjectCBs(gt);
 }
 
 void BlendingApp::UpdateCamera(const GameTimer& gt) {
@@ -553,6 +555,21 @@ void BlendingApp::UpdateCamera(const GameTimer& gt) {
 
 	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
 	XMStoreFloat4x4(&mView, view);
+}
+
+void BlendingApp::UpdateObjectCBs(const GameTimer& gt) {
+    auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+	for (auto& e : mAllRenderItems) {
+		if (e->NumFramesDirty > 0) {
+			XMMATRIX world = XMLoadFloat4x4(&e->World);
+			XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+			ObjectConstants objConstants;
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+			e->NumFramesDirty--;
+		}
+	}
 }
 
 void BlendingApp::AnimateMaterials(const GameTimer& gt) {
