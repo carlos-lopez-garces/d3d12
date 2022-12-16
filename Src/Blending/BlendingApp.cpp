@@ -5,6 +5,7 @@
 #include "../Common/DDSTextureLoader.h"
 #include "../Common/Camera.h"
 #include "FrameResource.h"
+#include "RenderItem.h"
 #include "Waves.h"
 
 using namespace DirectX;
@@ -12,6 +13,13 @@ using namespace Microsoft::WRL;
 using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
+
+enum class RenderLayer : int {
+    Opaque = 0,
+	Transparent,
+	AlphaTested,
+	Count
+};
 
 class BlendingApp : public D3DApp {
 public:
@@ -44,6 +52,12 @@ private:
 
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
+    RenderItem *mWavesRenderItem = nullptr;
+
+    std::vector<RenderItem*> mRenderItemLayer[(int)RenderLayer::Count];
+
+    std::vector<std::unique_ptr<RenderItem>> mAllRenderItems;
+
     void LoadTextures();
 
     void BuildRootSignature();
@@ -51,6 +65,7 @@ private:
     void BuildShadersAndInputLayout();
     void BuildGeometry();
     void BuildMaterials();
+    void BuildRenderItems();
     void BuildPSOs();
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
@@ -82,6 +97,7 @@ bool BlendingApp::Initialize() {
     BuildShadersAndInputLayout();
     BuildGeometry();
     BuildMaterials();
+    BuildRenderItems();
     BuildPSOs();
 
     // The first command list has been built. Close it before putting it in the command
@@ -430,6 +446,47 @@ void BlendingApp::BuildMaterials() {
     mMaterials["grass"] = std::move(grassMaterial);
     mMaterials["water"] = std::move(waterMaterial);
     mMaterials["wirefence"] = std::move(wirefenceMaterial);
+}
+
+void BlendingApp::BuildRenderItems() {
+    auto wavesRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
+    XMStoreFloat4x4(&wavesRenderItem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+    wavesRenderItem->ObjCBIndex = 0;
+    wavesRenderItem->Mat = mMaterials["water"].get();
+    wavesRenderItem->Geo = mGeometries["waterGeo"].get();
+    wavesRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    wavesRenderItem->IndexCount = wavesRenderItem->Geo->DrawArgs["grid"].IndexCount;
+    wavesRenderItem->StartIndexLocation = wavesRenderItem->Geo->DrawArgs["grid"].StartIndexLocation;
+    wavesRenderItem->BaseVertexLocation = wavesRenderItem->Geo->DrawArgs["grid"].BaseVertexLocation;
+    mWavesRenderItem = wavesRenderItem.get();
+    mRenderItemLayer[(int)RenderLayer::Transparent].push_back(wavesRenderItem.get());
+
+    auto gridRenderItem = std::make_unique<RenderItem>();
+    gridRenderItem->World = Math::Identity4x4();
+	XMStoreFloat4x4(&gridRenderItem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+	gridRenderItem->ObjCBIndex = 1;
+	gridRenderItem->Mat = mMaterials["grass"].get();
+	gridRenderItem->Geo = mGeometries["landGeo"].get();
+	gridRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    gridRenderItem->IndexCount = gridRenderItem->Geo->DrawArgs["grid"].IndexCount;
+    gridRenderItem->StartIndexLocation = gridRenderItem->Geo->DrawArgs["grid"].StartIndexLocation;
+    gridRenderItem->BaseVertexLocation = gridRenderItem->Geo->DrawArgs["grid"].BaseVertexLocation;
+	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(gridRenderItem.get());
+
+	auto boxRenderItem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&boxRenderItem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
+	boxRenderItem->ObjCBIndex = 2;
+	boxRenderItem->Mat = mMaterials["wirefence"].get();
+	boxRenderItem->Geo = mGeometries["boxGeo"].get();
+	boxRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	boxRenderItem->IndexCount = boxRenderItem->Geo->DrawArgs["box"].IndexCount;
+	boxRenderItem->StartIndexLocation = boxRenderItem->Geo->DrawArgs["box"].StartIndexLocation;
+	boxRenderItem->BaseVertexLocation = boxRenderItem->Geo->DrawArgs["box"].BaseVertexLocation;
+	mRenderItemLayer[(int)RenderLayer::AlphaTested].push_back(boxRenderItem.get());
+
+    mAllRenderItems.push_back(std::move(wavesRenderItem));
+    mAllRenderItems.push_back(std::move(gridRenderItem));
+	mAllRenderItems.push_back(std::move(boxRenderItem));
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
