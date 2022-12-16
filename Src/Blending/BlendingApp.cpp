@@ -83,7 +83,7 @@ BlendingApp::~BlendingApp() {
 }
 
 bool BlendingApp::Initialize() {
-    if (~D3DApp::Initialize()) {
+    if (!D3DApp::Initialize()) {
         return false;
     }
 
