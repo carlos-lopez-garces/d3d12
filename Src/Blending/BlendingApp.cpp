@@ -58,6 +58,8 @@ private:
 
     std::vector<std::unique_ptr<RenderItem>> mAllRenderItems;
 
+    std::vector<std::unique_ptr<FrameResource>> mFrameResources;
+
     void LoadTextures();
 
     void BuildRootSignature();
@@ -66,6 +68,7 @@ private:
     void BuildGeometry();
     void BuildMaterials();
     void BuildRenderItems();
+    void BuildFrameResources();
     void BuildPSOs();
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
@@ -90,7 +93,7 @@ bool BlendingApp::Initialize() {
 
     mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
-    // TODO: load and build.
+    // TODO: build.
     LoadTextures();
     BuildRootSignature();
     BuildDescriptorHeaps();
@@ -98,6 +101,7 @@ bool BlendingApp::Initialize() {
     BuildGeometry();
     BuildMaterials();
     BuildRenderItems();
+    BuildFrameResources();
     BuildPSOs();
 
     // The first command list has been built. Close it before putting it in the command
@@ -487,6 +491,14 @@ void BlendingApp::BuildRenderItems() {
     mAllRenderItems.push_back(std::move(wavesRenderItem));
     mAllRenderItems.push_back(std::move(gridRenderItem));
 	mAllRenderItems.push_back(std::move(boxRenderItem));
+}
+
+void BlendingApp::BuildFrameResources() {
+    for (int i = 0; i < gNumFrameResources; ++i) {
+        mFrameResources.push_back(std::make_unique<FrameResource>(
+            md3dDevice.Get(), 1, (UINT) mAllRenderItems.size(), (UINT)mMaterials.size(), mWaves->VertexCount()
+        ));
+    }
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
