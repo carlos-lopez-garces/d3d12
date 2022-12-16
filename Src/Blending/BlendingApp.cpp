@@ -34,6 +34,8 @@ private:
 
     std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 
+    std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 
     ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
@@ -48,6 +50,7 @@ private:
     void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildGeometry();
+    void BuildMaterials();
     void BuildPSOs();
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
@@ -78,6 +81,7 @@ bool BlendingApp::Initialize() {
     BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
     BuildGeometry();
+    BuildMaterials();
     BuildPSOs();
 
     // The first command list has been built. Close it before putting it in the command
@@ -396,6 +400,36 @@ void BlendingApp::BuildPSOs() {
 	};
 	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
+}
+
+void BlendingApp::BuildMaterials() {
+    auto grassMaterial = std::make_unique<Material>();
+    grassMaterial->Name = "grass";
+    grassMaterial->MatCBIndex = 0;
+    grassMaterial->DiffuseSrvHeapIndex = 0;
+    grassMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    grassMaterial->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+    grassMaterial->Roughness = 0.125f;
+
+    auto waterMaterial = std::make_unique<Material>();
+	waterMaterial->Name = "water";
+	waterMaterial->MatCBIndex = 1;
+	waterMaterial->DiffuseSrvHeapIndex = 1;
+	waterMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f);
+	waterMaterial->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	waterMaterial->Roughness = 0.0f;
+
+	auto wirefenceMaterial = std::make_unique<Material>();
+	wirefenceMaterial->Name = "wirefence";
+	wirefenceMaterial->MatCBIndex = 2;
+	wirefenceMaterial->DiffuseSrvHeapIndex = 2;
+	wirefenceMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	wirefenceMaterial->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	wirefenceMaterial->Roughness = 0.25f;
+
+    mMaterials["grass"] = std::move(grassMaterial);
+    mMaterials["water"] = std::move(waterMaterial);
+    mMaterials["wirefence"] = std::move(wirefenceMaterial);
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
