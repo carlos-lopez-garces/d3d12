@@ -92,6 +92,7 @@ private:
     virtual void Update(const GameTimer& gt) override;
     void UpdateCamera(const GameTimer& gt);
     void UpdateObjectCBs(const GameTimer& gt);
+    void UpdateMaterialCBs(const GameTimer& gt);
     void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
@@ -541,6 +542,7 @@ void BlendingApp::Update(const GameTimer& gt) {
 
     AnimateMaterials(gt);
     UpdateObjectCBs(gt);
+    UpdateMaterialCBs(gt);
 }
 
 void BlendingApp::UpdateCamera(const GameTimer& gt) {
@@ -568,6 +570,23 @@ void BlendingApp::UpdateObjectCBs(const GameTimer& gt) {
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 			e->NumFramesDirty--;
+		}
+	}
+}
+
+void BlendingApp::UpdateMaterialCBs(const GameTimer& gt) {
+	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+	for (auto& e : mMaterials) {
+		Material* mat = e.second.get();
+		if (mat->NumFramesDirty > 0) {
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+			MaterialConstants matConstants;
+			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matConstants.FresnelR0 = mat->FresnelR0;
+			matConstants.Roughness = mat->Roughness;
+			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
+			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+			mat->NumFramesDirty--;
 		}
 	}
 }
