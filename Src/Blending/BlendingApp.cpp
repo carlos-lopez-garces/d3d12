@@ -96,6 +96,7 @@ private:
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMaterialCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
+    void UpdateWaves(const GameTimer& gt);
     void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
@@ -547,6 +548,7 @@ void BlendingApp::Update(const GameTimer& gt) {
     UpdateObjectCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateMainPassCB(gt);
+    UpdateWaves(gt);
 }
 
 void BlendingApp::UpdateCamera(const GameTimer& gt) {
@@ -629,6 +631,33 @@ void BlendingApp::UpdateMainPassCB(const GameTimer& gt) {
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+void BlendingApp::UpdateWaves(const GameTimer& gt) {
+	static float t_base = 0.0f;
+	if ((mTimer.TotalTime() - t_base) >= 0.25f) {
+		t_base += 0.25f;
+		int i = Math::Rand(4, mWaves->RowCount() - 5);
+		int j = Math::Rand(4, mWaves->ColumnCount() - 5);
+		float r = Math::RandF(0.2f, 0.5f);
+		mWaves->Disturb(i, j, r);
+	}
+
+	mWaves->Update(gt.DeltaTime());
+
+	auto currWavesVB = mCurrFrameResource->WavesVB.get();
+	for (int i = 0; i < mWaves->VertexCount(); ++i) {
+		Vertex v;
+
+		v.Pos = mWaves->Position(i);
+		v.Normal = mWaves->Normal(i);
+		
+		v.TexC.x = 0.5f + v.Pos.x / mWaves->Width();
+		v.TexC.y = 0.5f - v.Pos.z / mWaves->Depth();
+
+		currWavesVB->CopyData(i, v);
+	}
+
+	mWavesRenderItem->Geo->VertexBufferGPU = currWavesVB->Resource();
+}
 
 void BlendingApp::AnimateMaterials(const GameTimer& gt) {
 	auto waterMat = mMaterials["water"].get();

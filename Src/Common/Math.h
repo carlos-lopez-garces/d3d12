@@ -6,6 +6,7 @@
 
 namespace Math {
 	static const float Pi = 3.1415926535f;
+	static const float Infinity = FLT_MAX;
 
 	DirectX::XMFLOAT4X4 Identity4x4();
 
@@ -17,5 +18,15 @@ namespace Math {
 		return (x < low) ? low : (x > high ? high : x);
 	}
 
-	static const float Infinity;
+	static float RandF() {
+		return (float)(rand()) / (float)RAND_MAX;
+	}
+
+	static float RandF(float a, float b) {
+		return a + RandF()*(b-a);
+	}
+
+    static int Rand(int a, int b) {
+        return a + rand() % ((b - a) + 1);
+    }
 }
