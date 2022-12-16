@@ -100,6 +100,9 @@ private:
     void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
+    virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
+    virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
+    virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 };
@@ -677,6 +680,34 @@ void BlendingApp::AnimateMaterials(const GameTimer& gt) {
 }
 
 void BlendingApp::OnKeyboardInput(const GameTimer& gt) {}
+
+void BlendingApp::OnMouseDown(WPARAM btnState, int x, int y) {
+    mLastMousePos.x = x;
+    mLastMousePos.y = y;
+    SetCapture(mhMainWnd);
+}
+
+void BlendingApp::OnMouseUp(WPARAM btnState, int x, int y) {
+    ReleaseCapture();
+}
+
+void BlendingApp::OnMouseMove(WPARAM btnState, int x, int y) {
+    if ((btnState & MK_LBUTTON) != 0) {
+        float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
+        float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
+        mTheta += dx;
+        mPhi += dy;
+        mPhi = Math::Clamp(mPhi, 0.1f, Math::Pi - 0.1f);
+    } else if ((btnState & MK_RBUTTON) != 0) {
+        float dx = 0.2f*static_cast<float>(x - mLastMousePos.x);
+        float dy = 0.2f*static_cast<float>(y - mLastMousePos.y);
+        mRadius += dx - dy;
+        mRadius = Math::Clamp(mRadius, 5.0f, 150.0f);
+    }
+
+    mLastMousePos.x = x;
+    mLastMousePos.y = y;
+}
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
