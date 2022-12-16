@@ -100,6 +100,7 @@ private:
     void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
+    void OnResize();
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
     virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
@@ -707,6 +708,12 @@ void BlendingApp::OnMouseMove(WPARAM btnState, int x, int y) {
 
     mLastMousePos.x = x;
     mLastMousePos.y = y;
+}
+
+void BlendingApp::OnResize() {
+    D3DApp::OnResize();
+    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*Math::Pi, AspectRatio(), 1.0f, 1000.0f);
+    XMStoreFloat4x4(&mProj, P);
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
