@@ -31,6 +31,8 @@ public:
     virtual bool Initialize() override;
 
 private:
+    PassConstants mMainPassCB;
+
     // Descriptor size for constant buffer views and shader resource views.
     UINT mCbvSrvDescriptorSize = 0;
 
@@ -93,6 +95,7 @@ private:
     void UpdateCamera(const GameTimer& gt);
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMaterialCBs(const GameTimer& gt);
+    void UpdateMainPassCB(const GameTimer& gt);
     void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
@@ -543,6 +546,7 @@ void BlendingApp::Update(const GameTimer& gt) {
     AnimateMaterials(gt);
     UpdateObjectCBs(gt);
     UpdateMaterialCBs(gt);
+    UpdateMainPassCB(gt);
 }
 
 void BlendingApp::UpdateCamera(const GameTimer& gt) {
@@ -590,6 +594,41 @@ void BlendingApp::UpdateMaterialCBs(const GameTimer& gt) {
 		}
 	}
 }
+
+void BlendingApp::UpdateMainPassCB(const GameTimer& gt) {
+	XMMATRIX view = XMLoadFloat4x4(&mView);
+	XMMATRIX proj = XMLoadFloat4x4(&mProj);
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+    XMVECTOR viewDeterminant = DirectX::XMMatrixDeterminant(view);
+	XMMATRIX invView = XMMatrixInverse(&viewDeterminant, view);
+    XMVECTOR projDeterminant = DirectX::XMMatrixDeterminant(proj);
+	XMMATRIX invProj = XMMatrixInverse(&projDeterminant, proj);
+    XMVECTOR viewProjDeterminant = DirectX::XMMatrixDeterminant(viewProj);
+	XMMATRIX invViewProj = XMMatrixInverse(&viewProjDeterminant, viewProj);
+	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	mMainPassCB.EyePosW = mEyePos;
+	mMainPassCB.RenderTargetSize = XMFLOAT2((float) mClientWidth, (float) mClientHeight);
+	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
+	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.TotalTime = gt.TotalTime();
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[0].Strength = { 0.9f, 0.9f, 0.8f };
+	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+	auto currPassCB = mCurrFrameResource->PassCB.get();
+	currPassCB->CopyData(0, mMainPassCB);
+}
+
 
 void BlendingApp::AnimateMaterials(const GameTimer& gt) {
 	auto waterMat = mMaterials["water"].get();
