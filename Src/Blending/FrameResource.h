@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Common/d3dUtil.h"
+#include "../Common/UploadBuffer.h"
 
 struct Vertex {
     DirectX::XMFLOAT3 Pos;
