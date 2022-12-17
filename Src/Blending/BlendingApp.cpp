@@ -86,6 +86,7 @@ private:
     void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildGeometry();
+    void BuildMainModelGeometry();
     void BuildMaterials();
     void BuildRenderItems();
     void BuildFrameResources();
@@ -135,6 +136,7 @@ bool BlendingApp::Initialize() {
     BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
     BuildGeometry();
+    BuildMainModelGeometry();
     BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
@@ -406,6 +408,105 @@ void BlendingApp::BuildGeometry() {
 	mGeometries["boxGeo"] = std::move(boxGeometry);
 }
 
+void BlendingApp::BuildMainModelGeometry() {
+  std::ifstream fin("Assets/car.txt");
+
+  if (!fin) {
+      MessageBox(0, L"Assets/car.txt not found.", 0, 0);
+      return;
+  }
+
+  UINT vcount = 0;
+  UINT tcount = 0;
+  std::string ignore;
+
+  fin >> ignore >> vcount;
+  fin >> ignore >> tcount;
+  fin >> ignore >> ignore >> ignore >> ignore;
+
+  XMFLOAT3 vMinf3(+Math::Infinity, +Math::Infinity, +Math::Infinity);
+  XMFLOAT3 vMaxf3(-Math::Infinity, -Math::Infinity, -Math::Infinity);
+
+  XMVECTOR vMin = XMLoadFloat3(&vMinf3);
+  XMVECTOR vMax = XMLoadFloat3(&vMaxf3);
+
+  std::vector<Vertex> vertices(vcount);
+  for (UINT i = 0; i < vcount; ++i) {
+    fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
+    fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
+
+    vertices[i].TexC = { 0.0f, 0.0f };
+
+    XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
+
+    XMVECTOR N = XMLoadFloat3(&vertices[i].Normal);
+
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    if(fabsf(XMVectorGetX(XMVector3Dot(N, up))) < 1.0f - 0.001f) {
+        XMVECTOR T = XMVector3Normalize(XMVector3Cross(up, N));
+        XMStoreFloat3(&vertices[i].TangentU, T);
+    } else {
+        up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+        XMVECTOR T = XMVector3Normalize(XMVector3Cross(N, up));
+        XMStoreFloat3(&vertices[i].TangentU, T);
+    }
+    
+    vMin = XMVectorMin(vMin, P);
+    vMax = XMVectorMax(vMax, P);
+  }
+
+  BoundingBox bounds;
+  XMStoreFloat3(&bounds.Center, 0.5f*(vMin + vMax));
+  XMStoreFloat3(&bounds.Extents, 0.5f*(vMax - vMin));
+
+  fin >> ignore;
+  fin >> ignore;
+  fin >> ignore;
+
+  std::vector<std::int32_t> indices(3 * tcount);
+  for (UINT i = 0; i < tcount; ++i) {
+      fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+  }
+
+  fin.close();
+
+  const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+  const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+
+  auto geo = std::make_unique<MeshGeometry>();
+  geo->Name = "mainModelGeo";
+
+  ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+  CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+  ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+  CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+  geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+    md3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader
+  );
+
+  geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+    md3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader
+  );
+
+  geo->VertexByteStride = sizeof(Vertex);
+  geo->VertexBufferByteSize = vbByteSize;
+  geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+  geo->IndexBufferByteSize = ibByteSize;
+
+  SubmeshGeometry submesh;
+  submesh.IndexCount = (UINT)indices.size();
+  submesh.StartIndexLocation = 0;
+  submesh.BaseVertexLocation = 0;
+  submesh.Bounds = bounds;
+
+  geo->DrawArgs["mainModel"] = submesh;
+
+  mGeometries[geo->Name] = std::move(geo);
+}
+
 void BlendingApp::BuildPSOs() {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
     ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -483,9 +584,19 @@ void BlendingApp::BuildMaterials() {
 	wirefenceMaterial->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	wirefenceMaterial->Roughness = 0.25f;
 
+    auto mainModelMaterial = std::make_unique<Material>();
+    mainModelMaterial->Name = "mainModelMat";
+    mainModelMaterial->MatCBIndex = 3;
+    mainModelMaterial->DiffuseSrvHeapIndex = -1;
+    mainModelMaterial->NormalSrvHeapIndex = 5;
+    mainModelMaterial->DiffuseAlbedo = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+    mainModelMaterial->FresnelR0 = XMFLOAT3(0.6f, 0.6f, 0.6f);
+    mainModelMaterial->Roughness = 0.2f;
+
     mMaterials["grass"] = std::move(grassMaterial);
     mMaterials["water"] = std::move(waterMaterial);
     mMaterials["wirefence"] = std::move(wirefenceMaterial);
+    mMaterials["mainModelMat"] = std::move(mainModelMaterial);
 }
 
 void BlendingApp::BuildRenderItems() {
@@ -511,7 +622,7 @@ void BlendingApp::BuildRenderItems() {
     gridRenderItem->IndexCount = gridRenderItem->Geo->DrawArgs["grid"].IndexCount;
     gridRenderItem->StartIndexLocation = gridRenderItem->Geo->DrawArgs["grid"].StartIndexLocation;
     gridRenderItem->BaseVertexLocation = gridRenderItem->Geo->DrawArgs["grid"].BaseVertexLocation;
-	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(gridRenderItem.get());
+	// mRenderItemLayer[(int)RenderLayer::Opaque].push_back(gridRenderItem.get());
 
 	auto boxRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
 	XMStoreFloat4x4(&boxRenderItem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
@@ -522,11 +633,24 @@ void BlendingApp::BuildRenderItems() {
 	boxRenderItem->IndexCount = boxRenderItem->Geo->DrawArgs["box"].IndexCount;
 	boxRenderItem->StartIndexLocation = boxRenderItem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRenderItem->BaseVertexLocation = boxRenderItem->Geo->DrawArgs["box"].BaseVertexLocation;
-	mRenderItemLayer[(int)RenderLayer::AlphaTested].push_back(boxRenderItem.get());
+	// mRenderItemLayer[(int)RenderLayer::AlphaTested].push_back(boxRenderItem.get());
+
+    auto mainModelRitem = std::make_unique<RenderItem>(gNumFrameResources);
+    XMStoreFloat4x4(&mainModelRitem->World, XMMatrixScaling(0.4f, 0.4f, 0.4f)*XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+    mainModelRitem->TexTransform = Math::Identity4x4();
+    mainModelRitem->ObjCBIndex = 3;
+    mainModelRitem->Mat = mMaterials["mainModelMat"].get();
+    mainModelRitem->Geo = mGeometries["mainModelGeo"].get();
+    mainModelRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    mainModelRitem->IndexCount = mainModelRitem->Geo->DrawArgs["mainModel"].IndexCount;
+    mainModelRitem->StartIndexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].StartIndexLocation;
+    mainModelRitem->BaseVertexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
+    mRenderItemLayer[(int)RenderLayer::Opaque].push_back(mainModelRitem.get());
 
     mAllRenderItems.push_back(std::move(wavesRenderItem));
     mAllRenderItems.push_back(std::move(gridRenderItem));
 	mAllRenderItems.push_back(std::move(boxRenderItem));
+    mAllRenderItems.push_back(std::move(mainModelRitem));
 }
 
 void BlendingApp::BuildFrameResources() {
@@ -787,13 +911,15 @@ void BlendingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std:
         cmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
         cmdList->IASetIndexBuffer(&indexBufferView);
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
-		cmdList->SetGraphicsRootDescriptorTable(0, tex);
         cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
         cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
+        if (ri->Mat->DiffuseSrvHeapIndex > -1) {
+            CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		    tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
+            cmdList->SetGraphicsRootDescriptorTable(0, tex);
+        }
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 }
