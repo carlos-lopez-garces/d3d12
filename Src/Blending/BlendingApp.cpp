@@ -91,6 +91,9 @@ private:
     void BuildFrameResources();
     void BuildPSOs();
 
+    virtual void Draw(const GameTimer& gt) override;
+    void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
+
     virtual void Update(const GameTimer& gt) override;
     void UpdateCamera(const GameTimer& gt);
     void UpdateObjectCBs(const GameTimer& gt);
@@ -498,7 +501,7 @@ void BlendingApp::BuildRenderItems() {
     mWavesRenderItem = wavesRenderItem.get();
     mRenderItemLayer[(int)RenderLayer::Transparent].push_back(wavesRenderItem.get());
 
-    auto gridRenderItem = std::make_unique<RenderItem>();
+    auto gridRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
     gridRenderItem->World = Math::Identity4x4();
 	XMStoreFloat4x4(&gridRenderItem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
 	gridRenderItem->ObjCBIndex = 1;
@@ -510,7 +513,7 @@ void BlendingApp::BuildRenderItems() {
     gridRenderItem->BaseVertexLocation = gridRenderItem->Geo->DrawArgs["grid"].BaseVertexLocation;
 	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(gridRenderItem.get());
 
-	auto boxRenderItem = std::make_unique<RenderItem>();
+	auto boxRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
 	XMStoreFloat4x4(&boxRenderItem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
 	boxRenderItem->ObjCBIndex = 2;
 	boxRenderItem->Mat = mMaterials["wirefence"].get();
@@ -714,6 +717,85 @@ void BlendingApp::OnResize() {
     D3DApp::OnResize();
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*Math::Pi, AspectRatio(), 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
+}
+
+void BlendingApp::Draw(const GameTimer& gt) {
+    auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+
+    ThrowIfFailed(cmdListAlloc->Reset());
+
+    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
+
+    mCommandList->RSSetViewports(1, &mScreenViewport);
+    mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+    // Indicate a state transition on the resource usage.
+    CD3DX12_RESOURCE_BARRIER backBufferResourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	mCommandList->ResourceBarrier(1, &backBufferResourceBarrier);
+
+    mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float*)&mMainPassCB.FogColor, 0, nullptr);
+    mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+    D3D12_CPU_DESCRIPTOR_HANDLE backBufferViewHandle = CurrentBackBufferView();
+    D3D12_CPU_DESCRIPTOR_HANDLE depthStencilViewHandle = DepthStencilView();
+    mCommandList->OMSetRenderTargets(1, &backBufferViewHandle, true, &depthStencilViewHandle);
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+
+    DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::AlphaTested]);
+
+	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Transparent]);
+
+    CD3DX12_RESOURCE_BARRIER backBufferPresentBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
+    );
+	mCommandList->ResourceBarrier(1, &backBufferPresentBarrier);
+
+    ThrowIfFailed(mCommandList->Close());
+
+    ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+    mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+    ThrowIfFailed(mSwapChain->Present(0, 0));
+	mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
+
+    mCurrFrameResource->Fence = ++mCurrentFence;
+
+    mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+}
+
+void BlendingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems) {
+    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+
+	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+	auto matCB = mCurrFrameResource->MaterialCB->Resource();
+
+    for (size_t i = 0; i < ritems.size(); ++i) {
+        auto ri = ritems[i];
+        D3D12_VERTEX_BUFFER_VIEW vertexBufferView = ri->Geo->VertexBufferView();
+        D3D12_INDEX_BUFFER_VIEW indexBufferView = ri->Geo->IndexBufferView();
+        cmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
+        cmdList->IASetIndexBuffer(&indexBufferView);
+        cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
+        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
+		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
+		cmdList->SetGraphicsRootDescriptorTable(0, tex);
+        cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
+        cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
+        cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+    }
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendingApp::GetStaticSamplers() {
