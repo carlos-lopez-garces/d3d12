@@ -511,7 +511,7 @@ void StencilingApp::BuildPSOs() {
 	transparencyBlendDesc.LogicOpEnable = false;
 	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
 	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_SUBTRACT;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
 	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
 	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
 	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
@@ -520,15 +520,30 @@ void StencilingApp::BuildPSOs() {
 	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
 
-    // Alpha tested objects.
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
-	alphaTestedPsoDesc.PS = 
-	{ 
-		reinterpret_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer()),
-		mShaders["alphaTestedPS"]->GetBufferSize()
-	};
-	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
+    // Stencil marking of mirrors.
+    CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
+    mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;
+    D3D12_DEPTH_STENCIL_DESC mirrorDSDesc;
+    mirrorDSDesc.DepthEnable = true;
+    mirrorDSDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    mirrorDSDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+    mirrorDSDesc.StencilEnable = true;
+    mirrorDSDesc.StencilReadMask = 0xff;
+    mirrorDSDesc.StencilWriteMask = 0xff;
+    mirrorDSDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+    mirrorDSDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+    mirrorDSDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+    mirrorDSDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    // The backface configuration doesn't matter given that we don't render back faces.
+    mirrorDSDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	mirrorDSDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	mirrorDSDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+	mirrorDSDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC markMirrorsPsoDesc = opaquePsoDesc;
+    markMirrorsPsoDesc.BlendState = mirrorBlendState;
+    markMirrorsPsoDesc.DepthStencilState = mirrorDSDesc;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorsPsoDesc, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
+
 }
 
 void StencilingApp::BuildMaterials() {
