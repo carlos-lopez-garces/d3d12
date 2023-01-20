@@ -9,6 +9,8 @@
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
+// COM interfaces are prefixed with a capital I: ID3D12RootSignature, ID3D12DescriptorHeap, etc.
+using Microsoft::WRL::ComPtr;
 using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
@@ -34,10 +36,12 @@ public:
 private:
     PassConstants mMainPassCB;
 
-    // Descriptor size for constant buffer views and shader resource views.
-    UINT mCbvSrvDescriptorSize = 0;
+    PassConstants mReflectedPassCB;
 
-    std::unique_ptr<Waves> mWaves;
+    // Descriptor size for constant buffer views and shader resource views.
+    // Used for computing offsets to store contiguous data in these descriptor
+    // heaps.
+    UINT mCbvSrvDescriptorSize = 0;
 
     std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 
@@ -55,7 +59,9 @@ private:
 
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
-    RenderItem *mWavesRenderItem = nullptr;
+    RenderItem *mSkullRenderItem = nullptr;
+    RenderItem *mReflectedSkullRenderItem = nullptr;
+    RenderItem *mShadowedSkullRenderItem = nullptr;
 
     std::vector<RenderItem*> mRenderItemLayer[(int)RenderLayer::Count];
 
@@ -73,11 +79,13 @@ private:
 
 	XMFLOAT4X4 mProj = Math::Identity4x4();
 
-    float mTheta = 1.5f*XM_PI;
+    XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };
 
-    float mPhi = XM_PIDIV2 - 0.1f;
+    float mTheta = 1.24f*XM_PI;
 
-    float mRadius = 5.0f;
+    float mPhi = 0.42f*XM_PI;
+
+    float mRadius = 12.0f;
 
     POINT mLastMousePos;
 
