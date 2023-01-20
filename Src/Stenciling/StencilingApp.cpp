@@ -138,8 +138,6 @@ bool StencilingApp::Initialize() {
 
     mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
-
     LoadTextures();
     BuildRootSignature();
     BuildDescriptorHeaps();
@@ -688,7 +686,7 @@ void StencilingApp::Update(const GameTimer& gt) {
     UpdateObjectCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateMainPassCB(gt);
-    UpdateWaves(gt);
+    UpdateReflectedPassCB(gt);
 }
 
 void StencilingApp::UpdateCamera(const GameTimer& gt) {
@@ -877,13 +875,29 @@ void StencilingApp::Draw(const GameTimer& gt) {
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
+    UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+
+    // Draw opaque layer. Mirrors are not part of this layer.
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
-
     DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Opaque]);
 
-	mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
-	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::AlphaTested]);
+    // Draw mirrors on stencil buffer:
+    // a. Disable writes to the depth buffer: D3D12_DEPTH_STENCIL_DESC::DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ ZERO.
+    // b. Disable writes to the back buffer: D3D12_RENDER_TARGET_BLEND_DESC::RenderTargetWriteMask = 0 in the blend state.
+    // c. To render the mirror to the stencil buffer:
+    // 	  i. Make the stencil test succeed always (D3D12_COMPARISON_ALWAYS), specifying
+    //       that the stencil buffer pixel be replaced (D3D12_STENCIL_OP_REPLACE) with 1
+    //       if the test passes later (for the objects that we'll test for reflection later).
+    //       This 1 is StencilRef in the test.
+    // 	 ii. If the mirror fails the depth test for a particular pixel (i.e. because another
+    //       object occludes it), set D3D12_STENCIL_OP_KEEP so that the stencil buffer isn't changed.
+    // 
+    // At the end, the stencil buffer will have 1s where the mirror is visible to the camera and 0s
+    // where the mirror is occluded or where the mirror isn't.
+    mCommandList->OMSetStencilRef(1);
+	mCommandList->SetPipelineState(mPSOs["markStencilMirrors"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Mirrors]);
 
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Transparent]);
