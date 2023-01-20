@@ -1015,15 +1015,13 @@ void StencilingApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const st
         cmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
         cmdList->IASetIndexBuffer(&indexBufferView);
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+        CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+        tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
+        cmdList->SetGraphicsRootDescriptorTable(0, tex);
         cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
         cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
-        if (ri->Mat->DiffuseSrvHeapIndex > -1) {
-            CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		    tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
-            cmdList->SetGraphicsRootDescriptorTable(0, tex);
-        }
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 }
