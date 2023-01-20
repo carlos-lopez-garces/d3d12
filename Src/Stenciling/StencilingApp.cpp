@@ -584,43 +584,53 @@ void StencilingApp::BuildPSOs() {
 }
 
 void StencilingApp::BuildMaterials() {
-    auto grassMaterial = std::make_unique<Material>();
-    grassMaterial->Name = "grass";
-    grassMaterial->MatCBIndex = 0;
-    grassMaterial->DiffuseSrvHeapIndex = 0;
-    grassMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    grassMaterial->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
-    grassMaterial->Roughness = 0.125f;
+    auto brickMaterial = std::make_unique<Material>();
+    brickMaterial->Name = "bricks";
+    brickMaterial->MatCBIndex = 0;
+    brickMaterial->DiffuseSrvHeapIndex = 0;
+    brickMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    brickMaterial->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    brickMaterial->Roughness = 0.25f;
 
-    auto waterMaterial = std::make_unique<Material>();
-	waterMaterial->Name = "water";
-	waterMaterial->MatCBIndex = 1;
-	waterMaterial->DiffuseSrvHeapIndex = 1;
-	waterMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f);
-	waterMaterial->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	waterMaterial->Roughness = 0.0f;
+    auto checkersMaterial = std::make_unique<Material>();
+	checkersMaterial->Name = "checkertile";
+	checkersMaterial->MatCBIndex = 1;
+	checkersMaterial->DiffuseSrvHeapIndex = 1;
+	checkersMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f);
+	checkersMaterial->FresnelR0 = XMFLOAT3(0.07f, 0.07f, 0.07f);
+	checkersMaterial->Roughness = 0.3f;
 
-	auto wirefenceMaterial = std::make_unique<Material>();
-	wirefenceMaterial->Name = "wirefence";
-	wirefenceMaterial->MatCBIndex = 2;
-	wirefenceMaterial->DiffuseSrvHeapIndex = 2;
-	wirefenceMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	wirefenceMaterial->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	wirefenceMaterial->Roughness = 0.25f;
+	auto mirrorMaterial = std::make_unique<Material>();
+	mirrorMaterial->Name = "mirror";
+	mirrorMaterial->MatCBIndex = 2;
+	mirrorMaterial->DiffuseSrvHeapIndex = 2;
+    // Note that alpah is 0.3: 30% of the mirror's albedo will be blended with 70% of
+    // the reflected object's albedo.
+	mirrorMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.3f);
+	mirrorMaterial->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	mirrorMaterial->Roughness = 0.5f;
 
     auto mainModelMaterial = std::make_unique<Material>();
     mainModelMaterial->Name = "mainModelMat";
     mainModelMaterial->MatCBIndex = 3;
-    mainModelMaterial->DiffuseSrvHeapIndex = -1;
-    mainModelMaterial->NormalSrvHeapIndex = 5;
-    mainModelMaterial->DiffuseAlbedo = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-    mainModelMaterial->FresnelR0 = XMFLOAT3(0.6f, 0.6f, 0.6f);
-    mainModelMaterial->Roughness = 0.2f;
+    mainModelMaterial->DiffuseSrvHeapIndex = 3;
+    mainModelMaterial->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    mainModelMaterial->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    mainModelMaterial->Roughness = 0.3f;
 
-    mMaterials["grass"] = std::move(grassMaterial);
-    mMaterials["water"] = std::move(waterMaterial);
-    mMaterials["wirefence"] = std::move(wirefenceMaterial);
+    auto shadowMat = std::make_unique<Material>();
+	shadowMat->Name = "shadowMat";
+	shadowMat->MatCBIndex = 4;
+	shadowMat->DiffuseSrvHeapIndex = 3;
+	shadowMat->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);
+	shadowMat->FresnelR0 = XMFLOAT3(0.001f, 0.001f, 0.001f);
+	shadowMat->Roughness = 0.0f;
+
+    mMaterials["bricks"] = std::move(brickMaterial);
+    mMaterials["checkertile"] = std::move(checkersMaterial);
+    mMaterials["mirror"] = std::move(mirrorMaterial);
     mMaterials["mainModelMat"] = std::move(mainModelMaterial);
+    mMaterials["shadowMat"] = std::move(shadowMat);
 }
 
 void StencilingApp::BuildRenderItems() {
@@ -680,7 +690,7 @@ void StencilingApp::BuildRenderItems() {
 void StencilingApp::BuildFrameResources() {
     for (int i = 0; i < gNumFrameResources; ++i) {
         mFrameResources.push_back(std::make_unique<FrameResource>(
-            md3dDevice.Get(), 1, (UINT) mAllRenderItems.size(), (UINT)mMaterials.size(), mWaves->VertexCount()
+            md3dDevice.Get(), 2, (UINT) mAllRenderItems.size(), (UINT) mMaterials.size()
         ));
     }
 }
