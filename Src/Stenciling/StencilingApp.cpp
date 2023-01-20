@@ -109,7 +109,7 @@ private:
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMaterialCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
-    void UpdateWaves(const GameTimer& gt);
+    void UpdateReflectedPassCB(const GameTimer& gt);
     void AnimateMaterials(const GameTimer& gt);
 
     void OnKeyboardInput(const GameTimer& gt);
@@ -760,7 +760,7 @@ void StencilingApp::UpdateMainPassCB(const GameTimer& gt) {
 	mMainPassCB.DeltaTime = gt.DeltaTime();
 	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	mMainPassCB.Lights[0].Strength = { 0.9f, 0.9f, 0.8f };
+	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
 	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
 	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
 	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
@@ -769,50 +769,25 @@ void StencilingApp::UpdateMainPassCB(const GameTimer& gt) {
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void StencilingApp::UpdateWaves(const GameTimer& gt) {
-	static float t_base = 0.0f;
-	if ((mTimer.TotalTime() - t_base) >= 0.25f) {
-		t_base += 0.25f;
-		int i = Math::Rand(4, mWaves->RowCount() - 5);
-		int j = Math::Rand(4, mWaves->ColumnCount() - 5);
-		float r = Math::RandF(0.2f, 0.5f);
-		mWaves->Disturb(i, j, r);
+void StencilingApp::UpdateReflectedPassCB(const GameTimer& gt) {
+    mReflectedPassCB = mMainPassCB;
+
+    // Mirror plane's normal.
+    XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+    XMMATRIX R = XMMatrixReflect(mirrorPlane);
+
+    // Direction of lights has to be reflected.
+    for(int i = 0; i < 3; ++i) {
+		XMVECTOR lightDir = XMLoadFloat3(&mMainPassCB.Lights[i].Direction);
+		XMVECTOR reflectedLightDir = XMVector3TransformNormal(lightDir, R);
+		XMStoreFloat3(&mReflectedPassCB.Lights[i].Direction, reflectedLightDir);
 	}
 
-	mWaves->Update(gt.DeltaTime());
-
-	auto currWavesVB = mCurrFrameResource->WavesVB.get();
-	for (int i = 0; i < mWaves->VertexCount(); ++i) {
-		Vertex v;
-
-		v.Pos = mWaves->Position(i);
-		v.Normal = mWaves->Normal(i);
-		
-		v.TexC.x = 0.5f + v.Pos.x / mWaves->Width();
-		v.TexC.y = 0.5f - v.Pos.z / mWaves->Depth();
-
-		currWavesVB->CopyData(i, v);
-	}
-
-	mWavesRenderItem->Geo->VertexBufferGPU = currWavesVB->Resource();
+    auto currPassCB = mCurrFrameResource->PassCB.get();
+	currPassCB->CopyData(1, mReflectedPassCB);
 }
 
-void StencilingApp::AnimateMaterials(const GameTimer& gt) {
-	auto waterMat = mMaterials["water"].get();
-	float& tu = waterMat->MatTransform(3, 0);
-	float& tv = waterMat->MatTransform(3, 1);
-	tu += 0.1f * gt.DeltaTime();
-	tv += 0.02f * gt.DeltaTime();
-	if(tu >= 1.0f) {
-        tu -= 1.0f;
-    }
-	if(tv >= 1.0f) {
-        tv -= 1.0f;
-    }
-	waterMat->MatTransform(3, 0) = tu;
-	waterMat->MatTransform(3, 1) = tv;
-	waterMat->NumFramesDirty = gNumFrameResources;
-}
+void StencilingApp::AnimateMaterials(const GameTimer& gt) {}
 
 void StencilingApp::OnKeyboardInput(const GameTimer& gt) {
     const float dt = gt.DeltaTime();
