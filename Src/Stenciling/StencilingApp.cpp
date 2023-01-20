@@ -520,7 +520,7 @@ void StencilingApp::BuildPSOs() {
 	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
 
-    // Stencil marking of mirrors.
+    // Stencil marking of mirrors PSO.
     CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
     mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;
     D3D12_DEPTH_STENCIL_DESC mirrorDSDesc;
@@ -544,6 +544,7 @@ void StencilingApp::BuildPSOs() {
     markMirrorsPsoDesc.DepthStencilState = mirrorDSDesc;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorsPsoDesc, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
 
+    // Mirror reflections PSO.
     D3D12_DEPTH_STENCIL_DESC reflectionsDSDesc;
 	reflectionsDSDesc.DepthEnable = true;
 	reflectionsDSDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -560,6 +561,26 @@ void StencilingApp::BuildPSOs() {
 	reflectionsDSDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	reflectionsDSDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
 	reflectionsDSDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+
+    D3D12_DEPTH_STENCIL_DESC shadowDSDesc;
+	shadowDSDesc.DepthEnable = true;
+	shadowDSDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	shadowDSDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	shadowDSDesc.StencilEnable = true;
+	shadowDSDesc.StencilReadMask = 0xff;
+	shadowDSDesc.StencilWriteMask = 0xff;
+	shadowDSDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowDSDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowDSDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
+	shadowDSDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+    // The backface configuration doesn't matter given that we don't render back faces.
+	shadowDSDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowDSDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowDSDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
+	shadowDSDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC shadowPsoDesc = transparentPsoDesc;
+	shadowPsoDesc.DepthStencilState = shadowDSDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc, IID_PPV_ARGS(&mPSOs["shadow"])));
 }
 
 void StencilingApp::BuildMaterials() {
