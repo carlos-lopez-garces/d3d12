@@ -48,7 +48,7 @@ struct PassConstants
 };
 
 struct FrameResource {
-    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount, UINT waveVertCount);
+    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
     FrameResource(const FrameResource& rhs) = delete;
     FrameResource& operator=(const FrameResource& rhs) = delete;
     ~FrameResource();
@@ -60,8 +60,6 @@ struct FrameResource {
     std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
 
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
-
-    std::unique_ptr<UploadBuffer<Vertex>> WavesVB = nullptr;
 
     UINT64 Fence = 0;
 };
