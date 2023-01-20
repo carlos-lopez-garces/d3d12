@@ -164,15 +164,17 @@ bool StencilingApp::Initialize() {
 
 void StencilingApp::LoadTextures() {
     std::vector<std::string> texNames = {
-        "grassTex",
-        "waterTex",
-        "fenceTex"
+        "bricksTex",
+        "checkboardTex",
+        "iceTex",
+        "white1x1Tex"
     };
 
     std::vector<std::wstring> texFilenames = {
-        L"Assets/grass.dds",
-        L"Assets/water1.dds",
-        L"Assets/fence.dds",
+        L"Assets/bricks3.dds",
+        L"Assets/checkboard.dds",
+        L"Assets/ice.dds",
+        L"Assets/white1x1.dds"
     };
 
     for (int i = 0; i < (int) texNames.size(); ++i) {
