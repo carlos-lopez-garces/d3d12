@@ -305,121 +305,100 @@ void StencilingApp::BuildShadersAndInputLayout() {
 }
 
 void StencilingApp::BuildGeometry() {
-    GeometryGenerator terrainGeoGenerator;
-    GeometryGenerator::MeshData grid = terrainGeoGenerator.CreateGrid(160.0f, 160.0f, 50, 50);
-    std::vector<Vertex> terrainVertices(grid.Vertices.size());
-    for(size_t i = 0; i < grid.Vertices.size(); ++i) {
-        auto& p = grid.Vertices[i].Position;
-        terrainVertices[i].Pos = p;
-        terrainVertices[i].Pos.y = 0.3f*(p.z*sinf(0.1f*p.x) + p.x*cosf(0.1f*p.z));
-         XMFLOAT3 n(
-            -0.03f*p.z*cosf(0.1f*p.x) - 0.3f*cosf(0.1f*p.z),
-            1.0f,
-            -0.3f*sinf(0.1f*p.x) + 0.03f*p.x*sinf(0.1f*p.z)
-        );
-        XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
-        XMStoreFloat3(&n, unitNormal);
-        terrainVertices[i].Normal = n;
-		terrainVertices[i].TexC = grid.Vertices[i].TexC;
-    }
-    const UINT terrainVBByteSize = (UINT) terrainVertices.size() * sizeof(Vertex);
-    std::vector<std::uint16_t> terrainIndices = grid.GetIndices16();
-    const UINT terrainIBByteSize = (UINT) terrainIndices.size() * sizeof(std::uint16_t);
-	auto terrainGeometry = std::make_unique<MeshGeometry>();
-	terrainGeometry->Name = "landGeo";
-	ThrowIfFailed(D3DCreateBlob(terrainVBByteSize, &terrainGeometry->VertexBufferCPU));
-	CopyMemory(terrainGeometry->VertexBufferCPU->GetBufferPointer(), terrainVertices.data(), terrainVBByteSize);
-	ThrowIfFailed(D3DCreateBlob(terrainIBByteSize, &terrainGeometry->IndexBufferCPU));
-	CopyMemory(terrainGeometry->IndexBufferCPU->GetBufferPointer(), terrainIndices.data(), terrainIBByteSize);
-	terrainGeometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-        md3dDevice.Get(), mCommandList.Get(), terrainVertices.data(), terrainVBByteSize, terrainGeometry->VertexBufferUploader
-    );
-	terrainGeometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-        md3dDevice.Get(), mCommandList.Get(), terrainIndices.data(), terrainIBByteSize, terrainGeometry->IndexBufferUploader
-    );
-	terrainGeometry->VertexByteStride = sizeof(Vertex);
-	terrainGeometry->VertexBufferByteSize = terrainVBByteSize;
-	terrainGeometry->IndexFormat = DXGI_FORMAT_R16_UINT;
-	terrainGeometry->IndexBufferByteSize = terrainIBByteSize;
-	SubmeshGeometry terrainSubmesh;
-	terrainSubmesh.IndexCount = (UINT) terrainIndices.size();
-	terrainSubmesh.StartIndexLocation = 0;
-	terrainSubmesh.BaseVertexLocation = 0;
-	terrainGeometry->DrawArgs["grid"] = terrainSubmesh;
-	mGeometries["landGeo"] = std::move(terrainGeometry);
+    std::array<Vertex, 20> vertices = {
+		Vertex(-3.5f, 0.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0.0f, 4.0f),
+		Vertex(-3.5f, 0.0f,   0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+		Vertex(7.5f, 0.0f,   0.0f, 0.0f, 1.0f, 0.0f, 4.0f, 0.0f),
+		Vertex(7.5f, 0.0f, -10.0f, 0.0f, 1.0f, 0.0f, 4.0f, 4.0f),
+		Vertex(-3.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f),
+		Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 0.0f),
+		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 2.0f),
+		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f), 
+		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 0.0f),
+		Vertex(7.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 2.0f),
+		Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(-3.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(7.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 0.0f),
+		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 1.0f),
+		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f),
+		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f)
+	};
 
-    std::vector<std::uint16_t> waterIndices(3 * mWaves->TriangleCount());
-	assert(mWaves->VertexCount() < 0x0000ffff);
-    int m = mWaves->RowCount();
-    int n = mWaves->ColumnCount();
-    int k = 0;
-    for(int i = 0; i < m - 1; ++i) {
-        for(int j = 0; j < n - 1; ++j) {
-            waterIndices[k] = i*n + j;
-            waterIndices[k + 1] = i*n + j + 1;
-            waterIndices[k + 2] = (i + 1)*n + j;
-            waterIndices[k + 3] = (i + 1)*n + j;
-            waterIndices[k + 4] = i*n + j + 1;
-            waterIndices[k + 5] = (i + 1)*n + j + 1;
-            k += 6;
-        }
-    }
-	UINT waterVBByteSize = mWaves->VertexCount()*sizeof(Vertex);
-	UINT waterIBByteSize = (UINT) waterIndices.size()*sizeof(std::uint16_t);
-	auto waterGeometry = std::make_unique<MeshGeometry>();
-	waterGeometry->Name = "waterGeo";
-	waterGeometry->VertexBufferCPU = nullptr;
-	waterGeometry->VertexBufferGPU = nullptr;
-	ThrowIfFailed(D3DCreateBlob(waterIBByteSize, &waterGeometry->IndexBufferCPU));
-	CopyMemory(waterGeometry->IndexBufferCPU->GetBufferPointer(), waterIndices.data(), waterIBByteSize);
-	waterGeometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-        md3dDevice.Get(), mCommandList.Get(), waterIndices.data(), waterIBByteSize, waterGeometry->IndexBufferUploader
-    );
-	waterGeometry->VertexByteStride = sizeof(Vertex);
-	waterGeometry->VertexBufferByteSize = waterVBByteSize;
-	waterGeometry->IndexFormat = DXGI_FORMAT_R16_UINT;
-	waterGeometry->IndexBufferByteSize = waterIBByteSize;
-	SubmeshGeometry waterSubmesh;
-	waterSubmesh.IndexCount = (UINT) waterIndices.size();
-	waterSubmesh.StartIndexLocation = 0;
-	waterSubmesh.BaseVertexLocation = 0;
-	waterGeometry->DrawArgs["grid"] = waterSubmesh;
-	mGeometries["waterGeo"] = std::move(waterGeometry);
+	std::array<std::int16_t, 30> indices = {
+		// Floor
+		0, 1, 2,	
+		0, 2, 3,
 
-	GeometryGenerator boxGeoGenerator;
-	GeometryGenerator::MeshData box = boxGeoGenerator.CreateBox(8.0f, 8.0f, 8.0f, 3);
-	std::vector<Vertex> boxVertices(box.Vertices.size());
-	for (size_t i = 0; i < box.Vertices.size(); ++i) {
-		auto& p = box.Vertices[i].Position;
-		boxVertices[i].Pos = p;
-		boxVertices[i].Normal = box.Vertices[i].Normal;
-		boxVertices[i].TexC = box.Vertices[i].TexC;
-	}
-	const UINT boxVBByteSize = (UINT) boxVertices.size() * sizeof(Vertex);
-	std::vector<std::uint16_t> boxIndices = box.GetIndices16();
-	const UINT boxIBByteSize = (UINT) boxIndices.size() * sizeof(std::uint16_t);
-	auto boxGeometry = std::make_unique<MeshGeometry>();
-	boxGeometry->Name = "boxGeo";
-	ThrowIfFailed(D3DCreateBlob(boxVBByteSize, &boxGeometry->VertexBufferCPU));
-	CopyMemory(boxGeometry->VertexBufferCPU->GetBufferPointer(), boxVertices.data(), boxVBByteSize);
-	ThrowIfFailed(D3DCreateBlob(boxIBByteSize, &boxGeometry->IndexBufferCPU));
-	CopyMemory(boxGeometry->IndexBufferCPU->GetBufferPointer(), boxIndices.data(), boxIBByteSize);
-	boxGeometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-        md3dDevice.Get(), mCommandList.Get(), boxVertices.data(), boxVBByteSize, boxGeometry->VertexBufferUploader
+		// Walls
+		4, 5, 6,
+		4, 6, 7,
+
+		8, 9, 10,
+		8, 10, 11,
+
+		12, 13, 14,
+		12, 14, 15,
+
+		// Mirror
+		16, 17, 18,
+		16, 18, 19
+	};
+
+	SubmeshGeometry floorSubmesh;
+	floorSubmesh.IndexCount = 6;
+	floorSubmesh.StartIndexLocation = 0;
+	floorSubmesh.BaseVertexLocation = 0;
+
+	SubmeshGeometry wallSubmesh;
+	wallSubmesh.IndexCount = 18;
+	wallSubmesh.StartIndexLocation = 6;
+	wallSubmesh.BaseVertexLocation = 0;
+
+	SubmeshGeometry mirrorSubmesh;
+	mirrorSubmesh.IndexCount = 6;
+	mirrorSubmesh.StartIndexLocation = 24;
+	mirrorSubmesh.BaseVertexLocation = 0;
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "roomGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+        md3dDevice.Get(),
+		mCommandList.Get(),
+        vertices.data(),
+        vbByteSize, geo->VertexBufferUploader
     );
-    boxGeometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-        md3dDevice.Get(), mCommandList.Get(), boxIndices.data(), boxIBByteSize, boxGeometry->IndexBufferUploader
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+        md3dDevice.Get(),
+		mCommandList.Get(),
+        indices.data(),
+        ibByteSize, geo->IndexBufferUploader
     );
-	boxGeometry->VertexByteStride = sizeof(Vertex);
-	boxGeometry->VertexBufferByteSize = boxVBByteSize;
-	boxGeometry->IndexFormat = DXGI_FORMAT_R16_UINT;
-	boxGeometry->IndexBufferByteSize = boxIBByteSize;
-	SubmeshGeometry boxSubmesh;
-	boxSubmesh.IndexCount = (UINT) boxIndices.size();
-	boxSubmesh.StartIndexLocation = 0;
-	boxSubmesh.BaseVertexLocation = 0;
-	boxGeometry->DrawArgs["box"] = boxSubmesh;
-	mGeometries["boxGeo"] = std::move(boxGeometry);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	geo->DrawArgs["floor"] = floorSubmesh;
+	geo->DrawArgs["wall"] = wallSubmesh;
+	geo->DrawArgs["mirror"] = mirrorSubmesh;
+
+	mGeometries[geo->Name] = std::move(geo);
 }
 
 void StencilingApp::BuildMainModelGeometry() {

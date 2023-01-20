@@ -7,7 +7,14 @@ struct Vertex {
     DirectX::XMFLOAT3 Pos;
     DirectX::XMFLOAT3 Normal;
     DirectX::XMFLOAT2 TexC;
-    DirectX::XMFLOAT3 TangentU;
+
+    Vertex() = default;
+	
+    Vertex(float x, float y, float z, float nx, float ny, float nz, float u, float v) 
+        : Pos(x, y, z),
+          Normal(nx, ny, nz),
+          TexC(u, v)
+    {}
 };
 
 struct ObjectConstants
