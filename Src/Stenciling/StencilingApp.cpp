@@ -899,6 +899,18 @@ void StencilingApp::Draw(const GameTimer& gt) {
 	mCommandList->SetPipelineState(mPSOs["markStencilMirrors"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Mirrors]);
 
+    // Render reflected objects to the back buffer only if the stencil test passes; we set up the test
+    // to pass if the value in the stencil buffer is 1 (Value in the test would be whatever was set while
+    // drawing the mirrors layer and StencilRef would be 1). This way, the reflected objects will only be
+    // rendered to the back buffer on the visible surface of the mirror.
+    mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress() + 1 * passCBByteSize);
+    mCommandList->SetPipelineState(mPSOs["drawStencilReflections"].Get());
+    DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Reflected]);
+
+    mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+	mCommandList->OMSetStencilRef(0);
+
+    // Draw transparent layer on the back buffer. The mirror is blended with the scene reflections.
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Transparent]);
 
