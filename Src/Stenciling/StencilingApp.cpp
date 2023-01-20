@@ -59,9 +59,9 @@ private:
 
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
-    RenderItem *mSkullRenderItem = nullptr;
-    RenderItem *mReflectedSkullRenderItem = nullptr;
-    RenderItem *mShadowedSkullRenderItem = nullptr;
+    RenderItem *mMainObjRenderItem = nullptr;
+    RenderItem *mReflectedMainObjRenderItem = nullptr;
+    RenderItem *mShadowedMainObjRenderItem = nullptr;
 
     std::vector<RenderItem*> mRenderItemLayer[(int)RenderLayer::Count];
 
@@ -79,7 +79,7 @@ private:
 
 	XMFLOAT4X4 mProj = Math::Identity4x4();
 
-    XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };
+    XMFLOAT3 mMainObjTranslation = { 0.0f, 1.0f, -5.0f };
 
     float mTheta = 1.24f*XM_PI;
 
@@ -814,7 +814,50 @@ void StencilingApp::AnimateMaterials(const GameTimer& gt) {
 	waterMat->NumFramesDirty = gNumFrameResources;
 }
 
-void StencilingApp::OnKeyboardInput(const GameTimer& gt) {}
+void StencilingApp::OnKeyboardInput(const GameTimer& gt) {
+    const float dt = gt.DeltaTime();
+
+    // Update main object translation vector.
+    if(GetAsyncKeyState('A') & 0x8000) {
+		mMainObjTranslation.x -= 1.0f*dt;
+    }
+	if(GetAsyncKeyState('D') & 0x8000) {
+		mMainObjTranslation.x += 1.0f*dt;
+    }
+	if(GetAsyncKeyState('W') & 0x8000) {
+		mMainObjTranslation.y += 1.0f*dt;
+    }
+	if(GetAsyncKeyState('S') & 0x8000) {
+		mMainObjTranslation.y -= 1.0f*dt;
+    }
+
+    // Prevent the object from moving below the floor.
+    mMainObjTranslation.y = Math::Max(mMainObjTranslation.y, 0.0f);
+
+    // Update main object's world matrix.
+    XMMATRIX mainObjRotate = XMMatrixRotationY(0.5f*Math::Pi);
+    XMMATRIX mainObjScale = XMMatrixScaling(0.45f, 0.45f, 0.45f);
+    XMMATRIX mainObjTranslate = XMMatrixTranslation(mMainObjTranslation.x, mMainObjTranslation.y, mMainObjTranslation.z);
+    XMMATRIX mainObjWorld = mainObjRotate * mainObjScale * mainObjTranslate;
+    XMStoreFloat4x4(&mMainObjRenderItem->World, mainObjWorld);
+    
+    // Update main object's reflection world matrix.
+    // Mirror plane's normal.
+    XMVECTOR mirrorPlane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+    XMMATRIX R = XMMatrixReflect(mirrorPlane);
+    XMStoreFloat4x4(&mReflectedMainObjRenderItem->World, mainObjWorld * R);
+
+    // Update main object's shadow  world matrix.
+    XMVECTOR shadowPlane = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR toMainLight = -XMLoadFloat3(&mMainPassCB.Lights[0].Direction);
+	XMMATRIX S = XMMatrixShadow(shadowPlane, toMainLight);
+	XMMATRIX shadowOffsetY = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
+	XMStoreFloat4x4(&mShadowedMainObjRenderItem->World, mainObjWorld * S * shadowOffsetY);
+
+	mSkullRitem->NumFramesDirty = gNumFrameResources;
+	mReflectedSkullRitem->NumFramesDirty = gNumFrameResources;
+	mShadowedSkullRitem->NumFramesDirty = gNumFrameResources;
+}
 
 void StencilingApp::OnMouseDown(WPARAM btnState, int x, int y) {
     mLastMousePos.x = x;
