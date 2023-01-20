@@ -440,7 +440,7 @@ void StencilingApp::BuildMainModelGeometry() {
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "skullGeo";
+	geo->Name = "mainModelGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -634,57 +634,77 @@ void StencilingApp::BuildMaterials() {
 }
 
 void StencilingApp::BuildRenderItems() {
-    auto wavesRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
-    XMStoreFloat4x4(&wavesRenderItem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
-    wavesRenderItem->ObjCBIndex = 0;
-    wavesRenderItem->Mat = mMaterials["water"].get();
-    wavesRenderItem->Geo = mGeometries["waterGeo"].get();
-    wavesRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    wavesRenderItem->IndexCount = wavesRenderItem->Geo->DrawArgs["grid"].IndexCount;
-    wavesRenderItem->StartIndexLocation = wavesRenderItem->Geo->DrawArgs["grid"].StartIndexLocation;
-    wavesRenderItem->BaseVertexLocation = wavesRenderItem->Geo->DrawArgs["grid"].BaseVertexLocation;
-    mWavesRenderItem = wavesRenderItem.get();
-    mRenderItemLayer[(int)RenderLayer::Transparent].push_back(wavesRenderItem.get());
+    auto floorRitem = std::make_unique<RenderItem>();
+	floorRitem->World = Math::Identity4x4();
+	floorRitem->TexTransform = Math::Identity4x4();
+	floorRitem->ObjCBIndex = 0;
+	floorRitem->Mat = mMaterials["checkertile"].get();
+	floorRitem->Geo = mGeometries["roomGeo"].get();
+	floorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	floorRitem->IndexCount = floorRitem->Geo->DrawArgs["floor"].IndexCount;
+	floorRitem->StartIndexLocation = floorRitem->Geo->DrawArgs["floor"].StartIndexLocation;
+	floorRitem->BaseVertexLocation = floorRitem->Geo->DrawArgs["floor"].BaseVertexLocation;
+	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(floorRitem.get());
 
-    auto gridRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
-    gridRenderItem->World = Math::Identity4x4();
-	XMStoreFloat4x4(&gridRenderItem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
-	gridRenderItem->ObjCBIndex = 1;
-	gridRenderItem->Mat = mMaterials["grass"].get();
-	gridRenderItem->Geo = mGeometries["landGeo"].get();
-	gridRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    gridRenderItem->IndexCount = gridRenderItem->Geo->DrawArgs["grid"].IndexCount;
-    gridRenderItem->StartIndexLocation = gridRenderItem->Geo->DrawArgs["grid"].StartIndexLocation;
-    gridRenderItem->BaseVertexLocation = gridRenderItem->Geo->DrawArgs["grid"].BaseVertexLocation;
-	// mRenderItemLayer[(int)RenderLayer::Opaque].push_back(gridRenderItem.get());
+    auto wallsRitem = std::make_unique<RenderItem>();
+	wallsRitem->World = Math::Identity4x4();
+	wallsRitem->TexTransform = Math::Identity4x4();
+	wallsRitem->ObjCBIndex = 1;
+	wallsRitem->Mat = mMaterials["bricks"].get();
+	wallsRitem->Geo = mGeometries["roomGeo"].get();
+	wallsRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	wallsRitem->IndexCount = wallsRitem->Geo->DrawArgs["wall"].IndexCount;
+	wallsRitem->StartIndexLocation = wallsRitem->Geo->DrawArgs["wall"].StartIndexLocation;
+	wallsRitem->BaseVertexLocation = wallsRitem->Geo->DrawArgs["wall"].BaseVertexLocation;
+	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(wallsRitem.get());
 
-	auto boxRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
-	XMStoreFloat4x4(&boxRenderItem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
-	boxRenderItem->ObjCBIndex = 2;
-	boxRenderItem->Mat = mMaterials["wirefence"].get();
-	boxRenderItem->Geo = mGeometries["boxGeo"].get();
-	boxRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	boxRenderItem->IndexCount = boxRenderItem->Geo->DrawArgs["box"].IndexCount;
-	boxRenderItem->StartIndexLocation = boxRenderItem->Geo->DrawArgs["box"].StartIndexLocation;
-	boxRenderItem->BaseVertexLocation = boxRenderItem->Geo->DrawArgs["box"].BaseVertexLocation;
-	// mRenderItemLayer[(int)RenderLayer::AlphaTested].push_back(boxRenderItem.get());
+	auto mainModelRenderItem = std::make_unique<RenderItem>();
+	mainModelRenderItem->World = Math::Identity4x4();
+	mainModelRenderItem->TexTransform = Math::Identity4x4();
+	mainModelRenderItem->ObjCBIndex = 2;
+	mainModelRenderItem->Mat = mMaterials["mainModelMat"].get();
+	mainModelRenderItem->Geo = mGeometries["mainModelGeo"].get();
+	mainModelRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	mainModelRenderItem->IndexCount = mainModelRenderItem->Geo->DrawArgs["skull"].IndexCount;
+	mainModelRenderItem->StartIndexLocation = mainModelRenderItem->Geo->DrawArgs["skull"].StartIndexLocation;
+	mainModelRenderItem->BaseVertexLocation = mainModelRenderItem->Geo->DrawArgs["skull"].BaseVertexLocation;
+	mMainObjRenderItem = mainModelRenderItem.get();
+	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(mainModelRenderItem.get());
 
-    auto mainModelRitem = std::make_unique<RenderItem>(gNumFrameResources);
-    XMStoreFloat4x4(&mainModelRitem->World, XMMatrixScaling(0.4f, 0.4f, 0.4f)*XMMatrixTranslation(0.0f, 1.0f, 0.0f));
-    mainModelRitem->TexTransform = Math::Identity4x4();
-    mainModelRitem->ObjCBIndex = 3;
-    mainModelRitem->Mat = mMaterials["mainModelMat"].get();
-    mainModelRitem->Geo = mGeometries["mainModelGeo"].get();
-    mainModelRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    mainModelRitem->IndexCount = mainModelRitem->Geo->DrawArgs["mainModel"].IndexCount;
-    mainModelRitem->StartIndexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].StartIndexLocation;
-    mainModelRitem->BaseVertexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
-    mRenderItemLayer[(int)RenderLayer::Opaque].push_back(mainModelRitem.get());
+	// Reflected skull will have different world matrix, so it needs to be its own render item.
+	auto reflectedmainModelRenderItem = std::make_unique<RenderItem>();
+	*reflectedmainModelRenderItem = *mainModelRenderItem;
+	reflectedmainModelRenderItem->ObjCBIndex = 3;
+	mReflectedMainObjRenderItem = reflectedmainModelRenderItem.get();
+	mRenderItemLayer[(int)RenderLayer::Reflected].push_back(reflectedmainModelRenderItem.get());
 
-    mAllRenderItems.push_back(std::move(wavesRenderItem));
-    mAllRenderItems.push_back(std::move(gridRenderItem));
-	mAllRenderItems.push_back(std::move(boxRenderItem));
-    mAllRenderItems.push_back(std::move(mainModelRitem));
+	// Shadowed skull will have different world matrix, so it needs to be its own render item.
+	auto shadowedmainModelRenderItem = std::make_unique<RenderItem>();
+	*shadowedmainModelRenderItem = *mainModelRenderItem;
+	shadowedmainModelRenderItem->ObjCBIndex = 4;
+	shadowedmainModelRenderItem->Mat = mMaterials["shadowMat"].get();
+	mShadowedMainObjRenderItem = shadowedmainModelRenderItem.get();
+	mRenderItemLayer[(int)RenderLayer::Shadow].push_back(shadowedmainModelRenderItem.get());
+
+	auto mirrorRitem = std::make_unique<RenderItem>();
+	mirrorRitem->World = Math::Identity4x4();
+	mirrorRitem->TexTransform = Math::Identity4x4();
+	mirrorRitem->ObjCBIndex = 5;
+	mirrorRitem->Mat = mMaterials["mirror"].get();
+	mirrorRitem->Geo = mGeometries["roomGeo"].get();
+	mirrorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	mirrorRitem->IndexCount = mirrorRitem->Geo->DrawArgs["mirror"].IndexCount;
+	mirrorRitem->StartIndexLocation = mirrorRitem->Geo->DrawArgs["mirror"].StartIndexLocation;
+	mirrorRitem->BaseVertexLocation = mirrorRitem->Geo->DrawArgs["mirror"].BaseVertexLocation;
+	mRenderItemLayer[(int)RenderLayer::Mirrors].push_back(mirrorRitem.get());
+	mRenderItemLayer[(int)RenderLayer::Transparent].push_back(mirrorRitem.get());
+
+	mAllRenderItems.push_back(std::move(floorRitem));
+	mAllRenderItems.push_back(std::move(wallsRitem));
+	mAllRenderItems.push_back(std::move(mainModelRenderItem));
+	mAllRenderItems.push_back(std::move(reflectedmainModelRenderItem));
+	mAllRenderItems.push_back(std::move(shadowedmainModelRenderItem));
+	mAllRenderItems.push_back(std::move(mirrorRitem));
 }
 
 void StencilingApp::BuildFrameResources() {
@@ -856,9 +876,9 @@ void StencilingApp::OnKeyboardInput(const GameTimer& gt) {
 	XMMATRIX shadowOffsetY = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
 	XMStoreFloat4x4(&mShadowedMainObjRenderItem->World, mainObjWorld * S * shadowOffsetY);
 
-	mSkullRitem->NumFramesDirty = gNumFrameResources;
-	mReflectedSkullRitem->NumFramesDirty = gNumFrameResources;
-	mShadowedSkullRitem->NumFramesDirty = gNumFrameResources;
+	mmainModelRenderItem->NumFramesDirty = gNumFrameResources;
+	mReflectedmainModelRenderItem->NumFramesDirty = gNumFrameResources;
+	mShadowedmainModelRenderItem->NumFramesDirty = gNumFrameResources;
 }
 
 void StencilingApp::OnMouseDown(WPARAM btnState, int x, int y) {
