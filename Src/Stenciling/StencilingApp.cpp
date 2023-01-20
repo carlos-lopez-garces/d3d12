@@ -544,6 +544,22 @@ void StencilingApp::BuildPSOs() {
     markMirrorsPsoDesc.DepthStencilState = mirrorDSDesc;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&markMirrorsPsoDesc, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
 
+    D3D12_DEPTH_STENCIL_DESC reflectionsDSDesc;
+	reflectionsDSDesc.DepthEnable = true;
+	reflectionsDSDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	reflectionsDSDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	reflectionsDSDesc.StencilEnable = true;
+	reflectionsDSDesc.StencilReadMask = 0xff;
+	reflectionsDSDesc.StencilWriteMask = 0xff;
+	reflectionsDSDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	reflectionsDSDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	reflectionsDSDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	reflectionsDSDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+    // The backface configuration doesn't matter given that we don't render back faces.
+	reflectionsDSDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	reflectionsDSDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	reflectionsDSDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	reflectionsDSDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
 }
 
 void StencilingApp::BuildMaterials() {
