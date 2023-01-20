@@ -244,7 +244,7 @@ void StencilingApp::BuildRootSignature() {
 
 void StencilingApp::BuildDescriptorHeaps() {
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 3;
+    srvHeapDesc.NumDescriptors = 4;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     // Input: descriptor of heap to create. Output: the heap.
@@ -254,9 +254,10 @@ void StencilingApp::BuildDescriptorHeaps() {
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-    auto grassTex = mTextures["grassTex"]->Resource;
-	auto waterTex = mTextures["waterTex"]->Resource;
-	auto fenceTex = mTextures["fenceTex"]->Resource;
+    auto bricksTex = mTextures["bricksTex"]->Resource;
+	auto checkboardTex = mTextures["checkboardTex"]->Resource;
+	auto iceTex = mTextures["iceTex"]->Resource;
+    auto white1x1Tex = mTextures["white1x1Tex"]->Resource;
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -264,16 +265,20 @@ void StencilingApp::BuildDescriptorHeaps() {
     srvDesc.Texture2D.MostDetailedMip = 0;
     srvDesc.Texture2D.MipLevels = -1;
 
-    srvDesc.Format = grassTex->GetDesc().Format;
-    md3dDevice->CreateShaderResourceView(grassTex.Get(), &srvDesc, heapHandle);
+    srvDesc.Format = bricksTex->GetDesc().Format;
+    md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, heapHandle);
 
     heapHandle.Offset(1, mCbvSrvDescriptorSize);
-    srvDesc.Format = waterTex->GetDesc().Format;
-    md3dDevice->CreateShaderResourceView(waterTex.Get(), &srvDesc, heapHandle);
+    srvDesc.Format = checkboardTex->GetDesc().Format;
+    md3dDevice->CreateShaderResourceView(checkboardTex.Get(), &srvDesc, heapHandle);
 
     heapHandle.Offset(1, mCbvSrvDescriptorSize);
-    srvDesc.Format = fenceTex->GetDesc().Format;
-    md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, heapHandle);
+    srvDesc.Format = iceTex->GetDesc().Format;
+    md3dDevice->CreateShaderResourceView(iceTex.Get(), &srvDesc, heapHandle);
+
+    heapHandle.Offset(1, mCbvSrvDescriptorSize);
+    srvDesc.Format = white1x1Tex->GetDesc().Format;
+    md3dDevice->CreateShaderResourceView(white1x1Tex.Get(), &srvDesc, heapHandle);
 }
 
 void StencilingApp::BuildShadersAndInputLayout() {
