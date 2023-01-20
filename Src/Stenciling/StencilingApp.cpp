@@ -914,6 +914,10 @@ void StencilingApp::Draw(const GameTimer& gt) {
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Transparent]);
 
+    // Draw shadows.
+    mCommandList->SetPipelineState(mPSOs["shadow"].Get());
+	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Shadow]);
+
     CD3DX12_RESOURCE_BARRIER backBufferPresentBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
         CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
     );
