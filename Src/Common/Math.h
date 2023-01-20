@@ -29,4 +29,8 @@ namespace Math {
     static int Rand(int a, int b) {
         return a + rand() % ((b - a) + 1);
     }
+
+	template<typename T> static T Max(const T& a, const T& b) {
+		return a > b ? a : b;
+	}
 }

@@ -1,7 +1,5 @@
 #include "Math.h"
 
-const float Math::Infinity = FLT_MAX;
-
 DirectX::XMFLOAT4X4 Math::Identity4x4() {
 	static DirectX::XMFLOAT4X4 I(
 		1.0f, 0.0f, 0.0f, 0.0f,
