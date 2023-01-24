@@ -402,10 +402,10 @@ void StencilingApp::BuildGeometry() {
 }
 
 void StencilingApp::BuildMainModelGeometry() {
-    std::ifstream fin("Models/skull.txt");
+    std::ifstream fin("Assets/car.txt");
 	
 	if(!fin) {
-		MessageBox(0, L"Models/skull.txt not found.", 0, 0);
+		MessageBox(0, L"Assets/car.txt not found.", 0, 0);
 		return;
 	}
 
@@ -474,7 +474,7 @@ void StencilingApp::BuildMainModelGeometry() {
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
 
-	geo->DrawArgs["skull"] = submesh;
+	geo->DrawArgs["mainModel"] = submesh;
 
 	mGeometries[geo->Name] = std::move(geo);
 }
@@ -561,6 +561,11 @@ void StencilingApp::BuildPSOs() {
 	reflectionsDSDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	reflectionsDSDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
 	reflectionsDSDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC drawReflectionsPsoDesc = opaquePsoDesc;
+	drawReflectionsPsoDesc.DepthStencilState = reflectionsDSDesc;
+	drawReflectionsPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+	drawReflectionsPsoDesc.RasterizerState.FrontCounterClockwise = true;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&drawReflectionsPsoDesc, IID_PPV_ARGS(&mPSOs["drawStencilReflections"])));
 
     D3D12_DEPTH_STENCIL_DESC shadowDSDesc;
 	shadowDSDesc.DepthEnable = true;
@@ -634,7 +639,7 @@ void StencilingApp::BuildMaterials() {
 }
 
 void StencilingApp::BuildRenderItems() {
-    auto floorRitem = std::make_unique<RenderItem>();
+    auto floorRitem = std::make_unique<RenderItem>(gNumFrameResources);
 	floorRitem->World = Math::Identity4x4();
 	floorRitem->TexTransform = Math::Identity4x4();
 	floorRitem->ObjCBIndex = 0;
@@ -646,7 +651,7 @@ void StencilingApp::BuildRenderItems() {
 	floorRitem->BaseVertexLocation = floorRitem->Geo->DrawArgs["floor"].BaseVertexLocation;
 	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(floorRitem.get());
 
-    auto wallsRitem = std::make_unique<RenderItem>();
+    auto wallsRitem = std::make_unique<RenderItem>(gNumFrameResources);
 	wallsRitem->World = Math::Identity4x4();
 	wallsRitem->TexTransform = Math::Identity4x4();
 	wallsRitem->ObjCBIndex = 1;
@@ -658,53 +663,53 @@ void StencilingApp::BuildRenderItems() {
 	wallsRitem->BaseVertexLocation = wallsRitem->Geo->DrawArgs["wall"].BaseVertexLocation;
 	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(wallsRitem.get());
 
-	auto mainModelRenderItem = std::make_unique<RenderItem>();
+	auto mainModelRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
 	mainModelRenderItem->World = Math::Identity4x4();
 	mainModelRenderItem->TexTransform = Math::Identity4x4();
 	mainModelRenderItem->ObjCBIndex = 2;
 	mainModelRenderItem->Mat = mMaterials["mainModelMat"].get();
 	mainModelRenderItem->Geo = mGeometries["mainModelGeo"].get();
 	mainModelRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	mainModelRenderItem->IndexCount = mainModelRenderItem->Geo->DrawArgs["skull"].IndexCount;
-	mainModelRenderItem->StartIndexLocation = mainModelRenderItem->Geo->DrawArgs["skull"].StartIndexLocation;
-	mainModelRenderItem->BaseVertexLocation = mainModelRenderItem->Geo->DrawArgs["skull"].BaseVertexLocation;
+	mainModelRenderItem->IndexCount = mainModelRenderItem->Geo->DrawArgs["mainModel"].IndexCount;
+	mainModelRenderItem->StartIndexLocation = mainModelRenderItem->Geo->DrawArgs["mainModel"].StartIndexLocation;
+	mainModelRenderItem->BaseVertexLocation = mainModelRenderItem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
 	mMainObjRenderItem = mainModelRenderItem.get();
 	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(mainModelRenderItem.get());
 
-	// Reflected skull will have different world matrix, so it needs to be its own render item.
-	auto reflectedmainModelRenderItem = std::make_unique<RenderItem>();
+	// Reflected main object will have different world matrix, so it needs to be its own render item.
+	auto reflectedmainModelRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
 	*reflectedmainModelRenderItem = *mainModelRenderItem;
 	reflectedmainModelRenderItem->ObjCBIndex = 3;
 	mReflectedMainObjRenderItem = reflectedmainModelRenderItem.get();
 	mRenderItemLayer[(int)RenderLayer::Reflected].push_back(reflectedmainModelRenderItem.get());
 
-	// Shadowed skull will have different world matrix, so it needs to be its own render item.
-	auto shadowedmainModelRenderItem = std::make_unique<RenderItem>();
-	*shadowedmainModelRenderItem = *mainModelRenderItem;
-	shadowedmainModelRenderItem->ObjCBIndex = 4;
-	shadowedmainModelRenderItem->Mat = mMaterials["shadowMat"].get();
-	mShadowedMainObjRenderItem = shadowedmainModelRenderItem.get();
-	mRenderItemLayer[(int)RenderLayer::Shadow].push_back(shadowedmainModelRenderItem.get());
+	// Shadowed main object will have different world matrix, so it needs to be its own render item.
+	auto shadowedMainModelRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
+	*shadowedMainModelRenderItem = *mainModelRenderItem;
+	shadowedMainModelRenderItem->ObjCBIndex = 4;
+	shadowedMainModelRenderItem->Mat = mMaterials["shadowMat"].get();
+	mShadowedMainObjRenderItem = shadowedMainModelRenderItem.get();
+	mRenderItemLayer[(int)RenderLayer::Shadow].push_back(shadowedMainModelRenderItem.get());
 
-	auto mirrorRitem = std::make_unique<RenderItem>();
-	mirrorRitem->World = Math::Identity4x4();
-	mirrorRitem->TexTransform = Math::Identity4x4();
-	mirrorRitem->ObjCBIndex = 5;
-	mirrorRitem->Mat = mMaterials["mirror"].get();
-	mirrorRitem->Geo = mGeometries["roomGeo"].get();
-	mirrorRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	mirrorRitem->IndexCount = mirrorRitem->Geo->DrawArgs["mirror"].IndexCount;
-	mirrorRitem->StartIndexLocation = mirrorRitem->Geo->DrawArgs["mirror"].StartIndexLocation;
-	mirrorRitem->BaseVertexLocation = mirrorRitem->Geo->DrawArgs["mirror"].BaseVertexLocation;
-	mRenderItemLayer[(int)RenderLayer::Mirrors].push_back(mirrorRitem.get());
-	mRenderItemLayer[(int)RenderLayer::Transparent].push_back(mirrorRitem.get());
+	auto mirrorRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
+	mirrorRenderItem->World = Math::Identity4x4();
+	mirrorRenderItem->TexTransform = Math::Identity4x4();
+	mirrorRenderItem->ObjCBIndex = 5;
+	mirrorRenderItem->Mat = mMaterials["mirror"].get();
+	mirrorRenderItem->Geo = mGeometries["roomGeo"].get();
+	mirrorRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	mirrorRenderItem->IndexCount = mirrorRenderItem->Geo->DrawArgs["mirror"].IndexCount;
+	mirrorRenderItem->StartIndexLocation = mirrorRenderItem->Geo->DrawArgs["mirror"].StartIndexLocation;
+	mirrorRenderItem->BaseVertexLocation = mirrorRenderItem->Geo->DrawArgs["mirror"].BaseVertexLocation;
+	mRenderItemLayer[(int)RenderLayer::Mirrors].push_back(mirrorRenderItem.get());
+	mRenderItemLayer[(int)RenderLayer::Transparent].push_back(mirrorRenderItem.get());
 
 	mAllRenderItems.push_back(std::move(floorRitem));
 	mAllRenderItems.push_back(std::move(wallsRitem));
 	mAllRenderItems.push_back(std::move(mainModelRenderItem));
 	mAllRenderItems.push_back(std::move(reflectedmainModelRenderItem));
-	mAllRenderItems.push_back(std::move(shadowedmainModelRenderItem));
-	mAllRenderItems.push_back(std::move(mirrorRitem));
+	mAllRenderItems.push_back(std::move(shadowedMainModelRenderItem));
+	mAllRenderItems.push_back(std::move(mirrorRenderItem));
 }
 
 void StencilingApp::BuildFrameResources() {
@@ -876,9 +881,9 @@ void StencilingApp::OnKeyboardInput(const GameTimer& gt) {
 	XMMATRIX shadowOffsetY = XMMatrixTranslation(0.0f, 0.001f, 0.0f);
 	XMStoreFloat4x4(&mShadowedMainObjRenderItem->World, mainObjWorld * S * shadowOffsetY);
 
-	mmainModelRenderItem->NumFramesDirty = gNumFrameResources;
-	mReflectedmainModelRenderItem->NumFramesDirty = gNumFrameResources;
-	mShadowedmainModelRenderItem->NumFramesDirty = gNumFrameResources;
+	mMainObjRenderItem->NumFramesDirty = gNumFrameResources;
+	mReflectedMainObjRenderItem->NumFramesDirty = gNumFrameResources;
+	mShadowedMainObjRenderItem->NumFramesDirty = gNumFrameResources;
 }
 
 void StencilingApp::OnMouseDown(WPARAM btnState, int x, int y) {
