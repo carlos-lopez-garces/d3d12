@@ -76,7 +76,7 @@ private:
 
     float mPhi = XM_PIDIV2 - 0.1f;
 
-    float mRadius = 50.0f;
+    float mRadius = 5.0f;
 
     POINT mLastMousePos;
 
@@ -539,7 +539,7 @@ void BlendingApp::BuildPSOs() {
 	transparencyBlendDesc.LogicOpEnable = false;
 	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
 	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_SUBTRACT;
 	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
 	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
 	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
