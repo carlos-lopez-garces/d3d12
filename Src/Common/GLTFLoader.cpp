@@ -4,7 +4,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "GLTFLoader.h"
 
-GLTFLoader::GLTFLoader(string &filename) : m_filename(filename)
+GLTFLoader::GLTFLoader(string &filename) : mFilename(filename)
 {}
 
 GLTFPrimitiveData GLTFLoader::Load(string &filename) {
@@ -93,7 +93,7 @@ void GLTFLoader::LoadModel() {
     string err;
     string warn;
 
-    bool ret = loader.LoadASCIIFromFile(&m_model, &err, &warn, m_filename);
+    bool ret = loader.LoadASCIIFromFile(&mModel, &err, &warn, mFilename);
     if (!warn.empty()) {
         printf("Warn: %s\n", warn.c_str());
     }
@@ -109,9 +109,9 @@ void GLTFLoader::LoadModel() {
 GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const {
     GLTFPrimitiveData primitiveData;
 
-    const tinygltf::Scene &scene = m_model.scenes[m_model.defaultScene];
-    auto &node = m_model.nodes[scene.nodes[nodeIdx]];
-    auto &mesh = m_model.meshes[node.mesh];
+    const tinygltf::Scene &scene = mModel.scenes[mModel.defaultScene];
+    auto &node = mModel.nodes[scene.nodes[nodeIdx]];
+    auto &mesh = mModel.meshes[node.mesh];
 
     // The primitive to load.
     tinygltf::Primitive primitive = mesh.primitives[primitiveIdx];
@@ -119,9 +119,9 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
     // Load indices.
 
     const size_t index_remap[] = {0, 2, 1};
-    tinygltf::Accessor indexAccessor = m_model.accessors[primitive.indices];
-    const tinygltf::BufferView &indexBufferView = m_model.bufferViews[indexAccessor.bufferView];
-    const tinygltf::Buffer &indexBuffer = m_model.buffers[indexBufferView.buffer];
+    tinygltf::Accessor indexAccessor = mModel.accessors[primitive.indices];
+    const tinygltf::BufferView &indexBufferView = mModel.bufferViews[indexAccessor.bufferView];
+    const tinygltf::Buffer &indexBuffer = mModel.buffers[indexBufferView.buffer];
     const uint8_t *indexes = indexBuffer.data.data() + indexBufferView.byteOffset;
     int stride = indexAccessor.ByteStride(indexBufferView);
     primitiveData.indices.resize(indexAccessor.count);
@@ -150,9 +150,9 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
 
     // Load vertex positions.
 
-    const tinygltf::Accessor &accessor = m_model.accessors[primitive.attributes["POSITION"]];
-    const tinygltf::BufferView &bufferView = m_model.bufferViews[accessor.bufferView];
-    const tinygltf::Buffer &buffer = m_model.buffers[bufferView.buffer];
+    const tinygltf::Accessor &accessor = mModel.accessors[primitive.attributes["POSITION"]];
+    const tinygltf::BufferView &bufferView = mModel.bufferViews[accessor.bufferView];
+    const tinygltf::Buffer &buffer = mModel.buffers[bufferView.buffer];
     stride = accessor.ByteStride(bufferView);
     const uint8_t *data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
 

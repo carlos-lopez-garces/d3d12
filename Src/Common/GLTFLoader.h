@@ -28,7 +28,7 @@ public:
     GLTFPrimitiveData LoadPrimitive(int nodeIdx, int primitiveIdx) const;
 
 private:
-    string m_filename;
+    string mFilename;
 
-    tinygltf::Model m_model;
+    tinygltf::Model mModel;
 };
