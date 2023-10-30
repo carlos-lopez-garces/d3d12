@@ -7,6 +7,13 @@
 GLTFLoader::GLTFLoader(string &filename) : mFilename(filename)
 {}
 
+unsigned int GLTFLoader::getPrimitiveCount(int nodeIdx) const {
+    const tinygltf::Scene &scene = mModel.scenes[mModel.defaultScene];
+    auto &node = mModel.nodes[scene.nodes[nodeIdx]];
+    auto &mesh = mModel.meshes[node.mesh];
+    return mesh.primitives.size();
+}
+
 GLTFPrimitiveData GLTFLoader::Load(string &filename) {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;

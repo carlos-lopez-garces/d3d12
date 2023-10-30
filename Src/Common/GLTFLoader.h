@@ -27,6 +27,8 @@ public:
     // Loads a single primitive from the specified node.
     GLTFPrimitiveData LoadPrimitive(int nodeIdx, int primitiveIdx) const;
 
+    unsigned int getPrimitiveCount(int nodeIdx = 0) const;
+
 private:
     string mFilename;
 
