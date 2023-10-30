@@ -1,3 +1,5 @@
+// Prevent definition of min and max macros.
+#define NOMINMAX   
 #include <windows.h>
 #include "GameTimer.h"
 

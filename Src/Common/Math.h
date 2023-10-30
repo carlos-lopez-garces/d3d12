@@ -1,5 +1,7 @@
 #pragma once
 
+// Prevent definition of min and max macros.
+#define NOMINMAX
 #include <Windows.h>
 #include <DirectXMath.h>
 #include <cstdint>
