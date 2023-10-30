@@ -52,6 +52,8 @@ private:
 
     std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 
+    std::vector<std::unique_ptr<MeshGeometry>> mUnnamedGeometries;
+
     std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
@@ -99,6 +101,7 @@ private:
     void BuildShadersAndInputLayout();
     void BuildGeometry();
     void BuildMainModelGeometry();
+    void BuildGeometryFromGLTF();
     void BuildMaterials();
     void BuildRenderItems();
     void BuildFrameResources();
@@ -147,6 +150,7 @@ bool StencilingApp::Initialize() {
     BuildShadersAndInputLayout();
     BuildGeometry();
     BuildMainModelGeometry();
+    BuildGeometryFromGLTF();
     BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
@@ -407,25 +411,42 @@ void StencilingApp::BuildGeometry() {
 }
 
 void StencilingApp::BuildMainModelGeometry() {
-    // GLTFData loadedData = GLTFLoader::Load(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
+    std::ifstream fin("Assets/car.txt");
+	
+	if(!fin) {
+		MessageBox(0, L"Assets/car.txt not found.", 0, 0);
+		return;
+	}
 
-    std::unique_ptr<GLTFLoader> gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
-    gltfLoader->LoadModel();
-    GLTFPrimitiveData loadedData = gltfLoader->LoadPrimitive(0, 50);
+	UINT vcount = 0;
+	UINT tcount = 0;
+	std::string ignore;
 
-    std::vector<std::uint16_t> &indices = loadedData.indices;
-    std::vector<Vertex> vertices(loadedData.vertices.size());
+	fin >> ignore >> vcount;
+	fin >> ignore >> tcount;
+	fin >> ignore >> ignore >> ignore >> ignore;
+	
+	std::vector<Vertex> vertices(vcount);
+	for(UINT i = 0; i < vcount; ++i) {
+		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
+		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
+		vertices[i].TexC = { 0.0f, 0.0f };
+	}
 
-    float scale = 0.1;
-    for (int i = 0; i < loadedData.vertices.size(); ++i) {
-        vertices[i].Pos.x = loadedData.vertices[i].x * scale;
-        vertices[i].Pos.y = loadedData.vertices[i].y * scale;
-        vertices[i].Pos.z = loadedData.vertices[i].z * scale;
-    }
+	fin >> ignore;
+	fin >> ignore;
+	fin >> ignore;
+
+	std::vector<std::int32_t> indices(3 * tcount);
+	for(UINT i = 0; i < tcount; ++i) {
+		fin >> indices[i*3+0] >> indices[i*3+1] >> indices[i*3+2];
+	}
+
+	fin.close();
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "mainModelGeo";
@@ -454,7 +475,7 @@ void StencilingApp::BuildMainModelGeometry() {
 
 	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry submesh;
@@ -465,6 +486,71 @@ void StencilingApp::BuildMainModelGeometry() {
 	geo->DrawArgs["mainModel"] = submesh;
 
 	mGeometries[geo->Name] = std::move(geo);
+}
+
+void StencilingApp::BuildGeometryFromGLTF() {
+    std::unique_ptr<GLTFLoader> gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+    gltfLoader->LoadModel();
+
+    unsigned int primCount = gltfLoader->getPrimitiveCount();
+    mUnnamedGeometries.resize(primCount);
+
+    for (int primIdx = 0; primIdx < primCount; ++primIdx) {
+        GLTFPrimitiveData loadedData = gltfLoader->LoadPrimitive(0, primIdx);
+
+        std::vector<std::uint16_t> &indices = loadedData.indices;
+        std::vector<Vertex> vertices(loadedData.vertices.size());
+
+        float scale = 0.005;
+        for (int i = 0; i < loadedData.vertices.size(); ++i) {
+            vertices[i].Pos.x = loadedData.vertices[i].x * scale;
+            vertices[i].Pos.y = loadedData.vertices[i].y * scale;
+            vertices[i].Pos.z = loadedData.vertices[i].z * scale;
+        }
+
+        const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+        const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+        auto geo = std::make_unique<MeshGeometry>();
+        geo->Name = std::to_string(primIdx);
+
+        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+        CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+        CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+        geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            vertices.data(),
+            vbByteSize,
+            geo->VertexBufferUploader
+        );
+
+        geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            indices.data(),
+            ibByteSize,
+            geo->IndexBufferUploader
+        );
+
+        geo->VertexByteStride = sizeof(Vertex);
+        geo->VertexBufferByteSize = vbByteSize;
+        geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+        geo->IndexBufferByteSize = ibByteSize;
+
+        SubmeshGeometry submesh;
+        submesh.IndexCount = (UINT)indices.size();
+        submesh.StartIndexLocation = 0;
+        submesh.BaseVertexLocation = 0;
+
+        geo->DrawArgs["mainModel"] = submesh;
+
+        mUnnamedGeometries[primIdx] = std::move(geo);
+    }
 }
 
 void StencilingApp::BuildPSOs() {
@@ -698,6 +784,22 @@ void StencilingApp::BuildRenderItems() {
 	mAllRenderItems.push_back(std::move(reflectedmainModelRenderItem));
 	mAllRenderItems.push_back(std::move(shadowedMainModelRenderItem));
 	mAllRenderItems.push_back(std::move(mirrorRenderItem));
+
+    for (int i = 0; i < mUnnamedGeometries.size(); ++i) {
+        auto mainModelRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
+        mainModelRenderItem->World = Math::Identity4x4();
+        mainModelRenderItem->TexTransform = Math::Identity4x4();
+        mainModelRenderItem->ObjCBIndex = 2;
+        mainModelRenderItem->Mat = mMaterials["mainModelMat"].get();
+        mainModelRenderItem->Geo = mUnnamedGeometries[i].get();
+        mainModelRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        mainModelRenderItem->IndexCount = mainModelRenderItem->Geo->DrawArgs["mainModel"].IndexCount;
+        mainModelRenderItem->StartIndexLocation = mainModelRenderItem->Geo->DrawArgs["mainModel"].StartIndexLocation;
+        mainModelRenderItem->BaseVertexLocation = mainModelRenderItem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
+        mMainObjRenderItem = mainModelRenderItem.get();
+        mRenderItemLayer[(int)RenderLayer::Opaque].push_back(mainModelRenderItem.get());
+        mAllRenderItems.push_back(std::move(mainModelRenderItem));
+    }
 }
 
 void StencilingApp::BuildFrameResources() {
