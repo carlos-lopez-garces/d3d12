@@ -12,16 +12,13 @@ GLTFData GLTFLoader::Load(string &filename) {
     string warn;
 
     bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
-    if (!warn.empty())
-    {
+    if (!warn.empty()) {
         printf("Warn: %s\n", warn.c_str());
     }
-    if (!err.empty())
-    {
+    if (!err.empty()) {
         printf("Err: %s\n", err.c_str());
     }
-    if (!ret)
-    {
+    if (!ret) {
         printf("Failed to parse glTF\n");
     }
 
@@ -86,4 +83,23 @@ GLTFData GLTFLoader::Load(string &filename) {
     }
 
     return loadedData;
+}
+
+void GLTFLoader::LoadModel(string &filename) {
+    tinygltf::TinyGLTF loader;
+    m_model = make_unique<tinygltf::Model>();
+
+    string err;
+    string warn;
+
+    bool ret = loader.LoadASCIIFromFile(m_model.get(), &err, &warn, filename);
+    if (!warn.empty()) {
+        printf("Warn: %s\n", warn.c_str());
+    }
+    if (!err.empty()) {
+        printf("Err: %s\n", err.c_str());
+    }
+    if (!ret) {
+        printf("Failed to parse glTF\n");
+    }
 }
