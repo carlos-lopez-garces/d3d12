@@ -8,6 +8,7 @@
 #include "FrameResource.h"
 #include "RenderItem.h"
 #include <iostream>
+#include <memory>
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -406,12 +407,16 @@ void StencilingApp::BuildGeometry() {
 }
 
 void StencilingApp::BuildMainModelGeometry() {
-    GLTFData loadedData = GLTFLoader::Load(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
+    // GLTFData loadedData = GLTFLoader::Load(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
+
+    std::unique_ptr<GLTFLoader> gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+    gltfLoader->LoadModel();
+    GLTFPrimitiveData loadedData = gltfLoader->LoadPrimitive(0, 50);
 
     std::vector<std::uint16_t> &indices = loadedData.indices;
     std::vector<Vertex> vertices(loadedData.vertices.size());
 
-    float scale = 100.0;
+    float scale = 0.1;
     for (int i = 0; i < loadedData.vertices.size(); ++i) {
         vertices[i].Pos.x = loadedData.vertices[i].x * scale;
         vertices[i].Pos.y = loadedData.vertices[i].y * scale;
