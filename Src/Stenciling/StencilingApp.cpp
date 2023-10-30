@@ -4,8 +4,10 @@
 #include "../Common/GeometryGenerator.h"
 #include "../Common/DDSTextureLoader.h"
 #include "../Common/Camera.h"
+#include "../Common/GLTFLoader.h"
 #include "FrameResource.h"
 #include "RenderItem.h"
+#include <iostream>
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -81,9 +83,9 @@ private:
 
     XMFLOAT3 mMainObjTranslation = { 0.0f, 1.0f, -5.0f };
 
-    float mTheta = 1.24f*XM_PI;
+    float mTheta = 1.30f*XM_PI;
 
-    float mPhi = 0.42f*XM_PI;
+    float mPhi = 0.5f*XM_PI;
 
     float mRadius = 12.0f;
 
@@ -171,7 +173,7 @@ void StencilingApp::LoadTextures() {
     };
 
     std::vector<std::wstring> texFilenames = {
-        L"Assets/bricks3.dds",
+        L"Assets/cosmic_sky.dds",
         L"Assets/checkboard.dds",
         L"Assets/ice.dds",
         L"Assets/white1x1.dds"
@@ -310,19 +312,21 @@ void StencilingApp::BuildGeometry() {
 		Vertex(-3.5f, 0.0f,   0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
 		Vertex(7.5f, 0.0f,   0.0f, 0.0f, 1.0f, 0.0f, 4.0f, 0.0f),
 		Vertex(7.5f, 0.0f, -10.0f, 0.0f, 1.0f, 0.0f, 4.0f, 4.0f),
-		Vertex(-3.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f),
-		Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+
+		Vertex(-3.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f),
+		Vertex(-3.0f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
 		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 0.0f),
 		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 2.0f),
 		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f), 
 		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
-		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 0.0f),
-		Vertex(7.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 2.0f),
-		Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),
-		Vertex(-3.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
-		Vertex(7.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 0.0f),
-		Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 1.0f),
-		Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(3.0f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 0.0f),
+		Vertex(3.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 2.0f),
+		Vertex(-3.0f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),
+		Vertex(-3.0f, 4.7f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+		Vertex(3.0f, 4.7f, 0.0f, 0.0f, 0.0f, -1.0f, 4.7f, 0.0f),
+		Vertex(3.0f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 4.7f, 1.0f),
+
+        Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),
 		Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
 		Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f),
 		Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f)
@@ -402,42 +406,21 @@ void StencilingApp::BuildGeometry() {
 }
 
 void StencilingApp::BuildMainModelGeometry() {
-    std::ifstream fin("Assets/car.txt");
-	
-	if(!fin) {
-		MessageBox(0, L"Assets/car.txt not found.", 0, 0);
-		return;
-	}
+    GLTFData loadedData = GLTFLoader::Load(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
 
-	UINT vcount = 0;
-	UINT tcount = 0;
-	std::string ignore;
+    std::vector<std::uint16_t> &indices = loadedData.indices;
+    std::vector<Vertex> vertices(loadedData.vertices.size());
 
-	fin >> ignore >> vcount;
-	fin >> ignore >> tcount;
-	fin >> ignore >> ignore >> ignore >> ignore;
-	
-	std::vector<Vertex> vertices(vcount);
-	for(UINT i = 0; i < vcount; ++i) {
-		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
-		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
-		vertices[i].TexC = { 0.0f, 0.0f };
-	}
-
-	fin >> ignore;
-	fin >> ignore;
-	fin >> ignore;
-
-	std::vector<std::int32_t> indices(3 * tcount);
-	for(UINT i = 0; i < tcount; ++i) {
-		fin >> indices[i*3+0] >> indices[i*3+1] >> indices[i*3+2];
-	}
-
-	fin.close();
+    float scale = 100.0;
+    for (int i = 0; i < loadedData.vertices.size(); ++i) {
+        vertices[i].Pos.x = loadedData.vertices[i].x * scale;
+        vertices[i].Pos.y = loadedData.vertices[i].y * scale;
+        vertices[i].Pos.z = loadedData.vertices[i].z * scale;
+    }
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "mainModelGeo";
@@ -466,7 +449,7 @@ void StencilingApp::BuildMainModelGeometry() {
 
 	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry submesh;
@@ -649,7 +632,7 @@ void StencilingApp::BuildRenderItems() {
 	floorRitem->IndexCount = floorRitem->Geo->DrawArgs["floor"].IndexCount;
 	floorRitem->StartIndexLocation = floorRitem->Geo->DrawArgs["floor"].StartIndexLocation;
 	floorRitem->BaseVertexLocation = floorRitem->Geo->DrawArgs["floor"].BaseVertexLocation;
-	mRenderItemLayer[(int)RenderLayer::Opaque].push_back(floorRitem.get());
+	// mRenderItemLayer[(int)RenderLayer::Opaque].push_back(floorRitem.get());
 
     auto wallsRitem = std::make_unique<RenderItem>(gNumFrameResources);
 	wallsRitem->World = Math::Identity4x4();
@@ -689,7 +672,7 @@ void StencilingApp::BuildRenderItems() {
 	shadowedMainModelRenderItem->ObjCBIndex = 4;
 	shadowedMainModelRenderItem->Mat = mMaterials["shadowMat"].get();
 	mShadowedMainObjRenderItem = shadowedMainModelRenderItem.get();
-	mRenderItemLayer[(int)RenderLayer::Shadow].push_back(shadowedMainModelRenderItem.get());
+	// mRenderItemLayer[(int)RenderLayer::Shadow].push_back(shadowedMainModelRenderItem.get());
 
 	auto mirrorRenderItem = std::make_unique<RenderItem>(gNumFrameResources);
 	mirrorRenderItem->World = Math::Identity4x4();
@@ -744,11 +727,11 @@ void StencilingApp::Update(const GameTimer& gt) {
 void StencilingApp::UpdateCamera(const GameTimer& gt) {
 	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
 	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
-	mEyePos.y = mRadius*cosf(mPhi);
+	mEyePos.y = mRadius*cosf(mPhi)-1.5f;
 
 	// Build the view matrix.
-	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
-	XMVECTOR target = XMVectorZero();
+	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y+3, mEyePos.z, 1.0f);
+	XMVECTOR target = XMVectorSet(1.5f, 2.0f, 0.0f, 1.0f);
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
 	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
@@ -981,8 +964,8 @@ void StencilingApp::Draw(const GameTimer& gt) {
 	mCommandList->OMSetStencilRef(0);
 
     // Draw transparent layer on the back buffer. The mirror is blended with the scene reflections.
-	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
-	DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Transparent]);
+	// mCommandList->SetPipelineState(mPSOs["transparent"].Get());
+	// DrawRenderItems(mCommandList.Get(), mRenderItemLayer[(int)RenderLayer::Transparent]);
 
     // Draw shadows.
     mCommandList->SetPipelineState(mPSOs["shadow"].Get());
