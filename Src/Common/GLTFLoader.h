@@ -4,24 +4,31 @@
 #include <memory>
 #include "Math.h"
 
+#define __STDC_LIB_EXT1__
+#include "../Ext/tiny_gltf.h"
+
 using namespace std;
 using namespace DirectX;
 
-namespace tinygltf {
-    class Model;
-};
-
-struct GLTFData {
+// Loaded data of a single primitive.
+struct GLTFPrimitiveData {
     vector<XMFLOAT3> vertices;
     vector<uint16_t> indices;
 };
 
 class GLTFLoader {
 public:
-    static GLTFData Load(string &filename);
+    GLTFLoader(string& filename);
 
-    void LoadModel(string &filename);
+    static GLTFPrimitiveData Load(string &filename);
+
+    void LoadModel();
+
+    // Loads a single primitive from the specified node.
+    GLTFPrimitiveData LoadPrimitive(int nodeIdx, int primitiveIdx) const;
 
 private:
-    unique_ptr<tinygltf::Model> m_model;
+    string m_filename;
+
+    tinygltf::Model m_model;
 };
