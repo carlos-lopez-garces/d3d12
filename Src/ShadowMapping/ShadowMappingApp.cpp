@@ -222,7 +222,7 @@ void ShadowMappingApp::LoadTextures() {
       L"Assets/sponza_floor_a_normal.dds",
       L"Assets/white1x1.dds",
       L"Assets/default_nmap.dds",
-      L"Assets/desertcube1024.dds"
+      L"Assets/cosmic_sky.dds"
   };
 
   for (int i = 0; i < (int)texNames.size(); ++i) {
@@ -953,8 +953,8 @@ void ShadowMappingApp::BuildRenderItems() {
 		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i*5.0f);
 		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i*5.0f);
 
-		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i*5.0f);
-		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i*5.0f);
+		XMMATRIX leftSphereWorld = XMMatrixTranslation(-3.0f, 2.5f, -10.0f + i*5.0f);
+		XMMATRIX rightSphereWorld = XMMatrixTranslation(+3.0f, 2.5f, -10.0f + i*5.0f);
 
 		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
 		XMStoreFloat4x4(&leftCylRitem->TexTransform, brickTexTransform);
@@ -996,8 +996,8 @@ void ShadowMappingApp::BuildRenderItems() {
 		rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 		rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
 
-		mRitemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
-		mRitemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
+		// mRitemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
+		// mRitemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
 		mRitemLayer[(int)RenderLayer::Opaque].push_back(leftSphereRitem.get());
 		mRitemLayer[(int)RenderLayer::Opaque].push_back(rightSphereRitem.get());
 
@@ -1158,8 +1158,8 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   mCommandList->SetPipelineState(mPSOs["opaque"].Get());
   DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-  mCommandList->SetPipelineState(mPSOs["debug"].Get());
-  DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+  // mCommandList->SetPipelineState(mPSOs["debug"].Get());
+  // DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
 
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);

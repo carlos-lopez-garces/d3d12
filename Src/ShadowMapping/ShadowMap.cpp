@@ -95,7 +95,7 @@ void ShadowMap::BuildResource() {
   resourceDesc.SampleDesc.Count = 1;
   resourceDesc.SampleDesc.Quality = 0;
   resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-  // I thought D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET was needed to because we are rendering the shadow map
+  // I thought D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET was needed because we are rendering the shadow map
   // to this texture.
   resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
