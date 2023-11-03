@@ -3,8 +3,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "GLTFLoader.h"
+#include "FileSystem.h"
 
-GLTFLoader::GLTFLoader(string &filename) : mFilename(filename)
+GLTFLoader::GLTFLoader(string &filename) 
+    : mFilename(filename),
+      mAssetsDirectory(FileSystem::GetDirectory(filename))
 {}
 
 unsigned int GLTFLoader::getPrimitiveCount(int nodeIdx) const {
@@ -214,4 +217,18 @@ void GLTFLoader::LoadPrimitiveUVs(
     for (size_t i = 0; i < accessor.count; ++i) {
         primitiveData.uvs.push_back(*(const XMFLOAT2 *)(data + i * stride));
     }
+}
+
+vector<GLTFTextureData> GLTFLoader::LoadTextures() {
+    unsigned int textureCount = mModel.textures.size();
+
+    vector<GLTFTextureData> textureData(textureCount);
+
+    for (int i = 0; i < textureCount; ++i) {
+        tinygltf::Texture &texture = mModel.textures[i];
+        tinygltf::Image &image = mModel.images[texture.source];
+        textureData[i].uri = FileSystem::GetDDSFilepath(mAssetsDirectory + "/DDS", image.uri);
+    }
+
+    return textureData;
 }

@@ -18,6 +18,10 @@ struct GLTFPrimitiveData {
     vector<XMFLOAT2> uvs;
 };
 
+struct GLTFTextureData {
+    string uri;
+};
+
 class GLTFLoader {
 public:
     GLTFLoader(string& filename);
@@ -26,13 +30,17 @@ public:
 
     void LoadModel();
 
+    unsigned int getPrimitiveCount(int nodeIdx = 0) const;
+
     // Loads a single primitive from the specified node.
     GLTFPrimitiveData LoadPrimitive(int nodeIdx, int primitiveIdx) const;
 
-    unsigned int getPrimitiveCount(int nodeIdx = 0) const;
+    // Loads all textures.
+    vector<GLTFTextureData> LoadTextures();
 
 private:
     string mFilename;
+    string mAssetsDirectory;
 
     tinygltf::Model mModel;
 
