@@ -37,6 +37,8 @@ struct RenderItem {
 
 class TexturingApp : public D3DApp {
 private:
+  std::unique_ptr<GLTFLoader> mGLTFLoader;
+
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
   std::vector<std::unique_ptr<MeshGeometry>> mUnnamedGeometries;
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
@@ -81,6 +83,7 @@ public:
   virtual bool Initialize() override;
 
 private:
+  void LoadModelFromGLTF();
   void BuildMaterials();
   void UpdateMaterialCBs(const GameTimer &gt);
   void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<RenderItem *> &ritems);
@@ -667,14 +670,11 @@ void TexturingApp::BuildShapeGeometry() {
 }
 
 void TexturingApp::BuildGeometryFromGLTF() {
-    std::unique_ptr<GLTFLoader> gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
-    gltfLoader->LoadModel();
-
-    unsigned int primCount = gltfLoader->getPrimitiveCount();
+    unsigned int primCount = mGLTFLoader->getPrimitiveCount();
     mUnnamedGeometries.resize(primCount);
 
     for (int primIdx = 0; primIdx < primCount; ++primIdx) {
-        GLTFPrimitiveData loadedData = gltfLoader->LoadPrimitive(0, primIdx);
+        GLTFPrimitiveData loadedData = mGLTFLoader->LoadPrimitive(0, primIdx);
 
         std::vector<std::uint16_t> &indices = loadedData.indices;
         std::vector<Vertex> vertices(loadedData.positions.size());
@@ -749,6 +749,7 @@ bool TexturingApp::Initialize() {
   // Query the driver for the increment size of a descriptor of the CbvSrvUav heap.
   mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+  LoadModelFromGLTF();
   LoadTextures();
 
   BuildRootSignature();
@@ -830,6 +831,11 @@ void TexturingApp::OnMouseMove(WPARAM btnState, int x, int y) {
 
   mLastMousePos.x = x;
   mLastMousePos.y = y;
+}
+
+void TexturingApp::LoadModelFromGLTF() {
+  mGLTFLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+  mGLTFLoader->LoadModel();
 }
 
 void TexturingApp::LoadTextures() {
