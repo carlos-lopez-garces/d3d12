@@ -35,6 +35,11 @@ private:
 
     tinygltf::Model mModel;
 
+    void LoadPrimitiveIndices(
+        tinygltf::Primitive &primitive,
+        GLTFPrimitiveData &primitiveData
+    ) const;
+
     void LoadPrimitivePositions(
         tinygltf::Primitive &primitive,
         GLTFPrimitiveData &primitiveData

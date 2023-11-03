@@ -124,8 +124,22 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
     tinygltf::Primitive primitive = mesh.primitives[primitiveIdx];
 
     // Load indices.
+    LoadPrimitiveIndices(primitive, primitiveData);
 
-    const size_t index_remap[] = {0, 1, 2};
+    // Load vertex positions.
+    LoadPrimitivePositions(primitive, primitiveData);
+
+    // Load vertex normals.
+    LoadPrimitiveNormals(primitive, primitiveData);
+
+    return primitiveData;
+}
+
+void GLTFLoader::LoadPrimitiveIndices(
+        tinygltf::Primitive &primitive,
+        GLTFPrimitiveData &primitiveData
+) const {
+    const size_t indexRemap[] = {0, 1, 2};
     tinygltf::Accessor indexAccessor = mModel.accessors[primitive.indices];
     const tinygltf::BufferView &indexBufferView = mModel.bufferViews[indexAccessor.bufferView];
     const tinygltf::Buffer &indexBuffer = mModel.buffers[indexBufferView.buffer];
@@ -135,33 +149,25 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
 
     if (stride == 1) {
         for (size_t i = 0; i < indexAccessor.count; i += 3) {
-            primitiveData.indices[i + 0] = indexes[i + index_remap[0]];
-            primitiveData.indices[i + 1] = indexes[i + index_remap[1]];
-            primitiveData.indices[i + 2] = indexes[i + index_remap[2]];
+            primitiveData.indices[i + 0] = indexes[i + indexRemap[0]];
+            primitiveData.indices[i + 1] = indexes[i + indexRemap[1]];
+            primitiveData.indices[i + 2] = indexes[i + indexRemap[2]];
         }
     } else if (stride == 2) {
         for (size_t i = 0; i < indexAccessor.count; i += 3) {
-            primitiveData.indices[i + 0] = ((uint16_t *)indexes)[i + index_remap[0]];
-            primitiveData.indices[i + 1] = ((uint16_t *)indexes)[i + index_remap[1]];
-            primitiveData.indices[i + 2] = ((uint16_t *)indexes)[i + index_remap[2]];
+            primitiveData.indices[i + 0] = ((uint16_t *)indexes)[i + indexRemap[0]];
+            primitiveData.indices[i + 1] = ((uint16_t *)indexes)[i + indexRemap[1]];
+            primitiveData.indices[i + 2] = ((uint16_t *)indexes)[i + indexRemap[2]];
         }
     } else if (stride == 4) {
         for (size_t i = 0; i < indexAccessor.count; i += 3) {
-            primitiveData.indices[i + 0] = ((uint32_t *)indexes)[i + index_remap[0]];
-            primitiveData.indices[i + 1] = ((uint32_t *)indexes)[i + index_remap[1]];
-            primitiveData.indices[i + 2] = ((uint32_t *)indexes)[i + index_remap[2]];
+            primitiveData.indices[i + 0] = ((uint32_t *)indexes)[i + indexRemap[0]];
+            primitiveData.indices[i + 1] = ((uint32_t *)indexes)[i + indexRemap[1]];
+            primitiveData.indices[i + 2] = ((uint32_t *)indexes)[i + indexRemap[2]];
         }
     } else {
         assert(0 && "unsupported index stride");
     }
-
-    // Load vertex positions.
-    LoadPrimitivePositions(primitive, primitiveData);
-
-    // Load vertex normals.
-    LoadPrimitiveNormals(primitive, primitiveData);
-
-    return primitiveData;
 }
 
 void GLTFLoader::LoadPrimitivePositions(
