@@ -85,7 +85,7 @@ GLTFPrimitiveData GLTFLoader::Load(string &filename) {
                 const uint8_t *data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
 
                 for (size_t i = 0; i < accessor.count; ++i) {
-                    loadedData.vertices.push_back(*(const XMFLOAT3 *)(data + i * stride));
+                    loadedData.positions.push_back(*(const XMFLOAT3 *)(data + i * stride));
                 }
             }
         }
@@ -158,6 +158,9 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
     // Load vertex positions.
     LoadPrimitivePositions(primitive, primitiveData);
 
+    // Load vertex normals.
+    LoadPrimitiveNormals(primitive, primitiveData);
+
     return primitiveData;
 }
 
@@ -171,6 +174,20 @@ void GLTFLoader::LoadPrimitivePositions(
     const uint8_t *data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
 
     for (size_t i = 0; i < accessor.count; ++i) {
-        primitiveData.vertices.push_back(*(const XMFLOAT3 *)(data + i * stride));
+        primitiveData.positions.push_back(*(const XMFLOAT3 *)(data + i * stride));
+    }
+}
+
+void GLTFLoader::LoadPrimitiveNormals(
+    tinygltf::Primitive &primitive, GLTFPrimitiveData &primitiveData
+) const {
+    const tinygltf::Accessor &accessor = mModel.accessors[primitive.attributes["NORMAL"]];
+    const tinygltf::BufferView &bufferView = mModel.bufferViews[accessor.bufferView];
+    const tinygltf::Buffer &buffer = mModel.buffers[bufferView.buffer];
+    int stride = accessor.ByteStride(bufferView);
+    const uint8_t *data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
+
+    for (size_t i = 0; i < accessor.count; ++i) {
+        primitiveData.normals.push_back(*(const XMFLOAT3 *)(data + i * stride));
     }
 }

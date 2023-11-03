@@ -499,13 +499,13 @@ void StencilingApp::BuildGeometryFromGLTF() {
         GLTFPrimitiveData loadedData = gltfLoader->LoadPrimitive(0, primIdx);
 
         std::vector<std::uint16_t> &indices = loadedData.indices;
-        std::vector<Vertex> vertices(loadedData.vertices.size());
+        std::vector<Vertex> vertices(loadedData.positions.size());
 
         float scale = 0.005;
-        for (int i = 0; i < loadedData.vertices.size(); ++i) {
-            vertices[i].Pos.x = loadedData.vertices[i].x * scale;
-            vertices[i].Pos.y = loadedData.vertices[i].y * scale;
-            vertices[i].Pos.z = loadedData.vertices[i].z * scale;
+        for (int i = 0; i < loadedData.positions.size(); ++i) {
+            vertices[i].Pos.x = loadedData.positions[i].x * scale;
+            vertices[i].Pos.y = loadedData.positions[i].y * scale;
+            vertices[i].Pos.z = loadedData.positions[i].z * scale;
         }
 
         const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);

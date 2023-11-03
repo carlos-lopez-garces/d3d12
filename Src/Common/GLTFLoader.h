@@ -12,8 +12,9 @@ using namespace DirectX;
 
 // Loaded data of a single primitive.
 struct GLTFPrimitiveData {
-    vector<XMFLOAT3> vertices;
+    vector<XMFLOAT3> positions;
     vector<uint16_t> indices;
+    vector<XMFLOAT3> normals;
 };
 
 class GLTFLoader {
@@ -35,6 +36,11 @@ private:
     tinygltf::Model mModel;
 
     void LoadPrimitivePositions(
+        tinygltf::Primitive &primitive,
+        GLTFPrimitiveData &primitiveData
+    ) const;
+
+    void LoadPrimitiveNormals(
         tinygltf::Primitive &primitive,
         GLTFPrimitiveData &primitiveData
     ) const;
