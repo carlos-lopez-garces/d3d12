@@ -279,6 +279,23 @@ void TexturingApp::BuildRenderItems()
   for (auto& renderItem : mAllRenderItems) {
     mOpaqueRenderItems.push_back(renderItem.get());
   }
+
+  for (int i = 0; i < mUnnamedGeometries.size(); ++i) {
+    auto unnamedGeomRenderItem = std::make_unique<RenderItem>();
+    unnamedGeomRenderItem->World = Math::Identity4x4();
+    unnamedGeomRenderItem->TexTransform = Math::Identity4x4();
+    // TODO.
+    unnamedGeomRenderItem->ObjCBIndex = 2;
+    // TODO.
+    unnamedGeomRenderItem->Mat = mMaterials["brick"].get();
+    unnamedGeomRenderItem->Geo = mUnnamedGeometries[i].get();
+    unnamedGeomRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    unnamedGeomRenderItem->IndexCount = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].IndexCount;
+    unnamedGeomRenderItem->StartIndexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].StartIndexLocation;
+    unnamedGeomRenderItem->BaseVertexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
+    mOpaqueRenderItems.push_back(unnamedGeomRenderItem.get());
+    mAllRenderItems.push_back(std::move(unnamedGeomRenderItem));
+  }
 }
 
 void TexturingApp::UpdateObjectCBs(const GameTimer& gt) {
