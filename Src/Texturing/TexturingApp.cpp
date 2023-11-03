@@ -899,6 +899,8 @@ void TexturingApp::LoadTexturesFromGLTF() {
       texture->Resource,
       texture->UploadHeap
     ));
+
+    mUnnamedTextures[i] = std::move(texture);
   }
 }
 
@@ -906,7 +908,7 @@ void TexturingApp::BuildDescriptorHeaps() {
   // Descriptor for creating a heap for texture (shader resource) descriptors. 
   D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
   // 3 because we load 3 textures: brick, stone, and tiles.
-  srvHeapDesc.NumDescriptors = 3;
+  srvHeapDesc.NumDescriptors = 3 + mUnnamedTextures.size();
   srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
   // Indicates that the descriptors may only be created in GPU memory, without the need for staging
   // them on the CPU. Likely because this application doesn't need to update the texture descriptors
@@ -942,6 +944,14 @@ void TexturingApp::BuildDescriptorHeaps() {
   srvDesc.Format = tileTex->GetDesc().Format;
   srvDesc.Texture2D.MipLevels = tileTex->GetDesc().MipLevels;
   md3dDevice->CreateShaderResourceView(tileTex.Get(), &srvDesc, hDescriptor);
+
+  // Allocate descriptors for textures loaded from GLTF model.
+  for (unique_ptr<Texture> &texture : mUnnamedTextures) {
+    hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+    srvDesc.Format = texture->Resource->GetDesc().Format;
+    srvDesc.Texture2D.MipLevels = texture->Resource->GetDesc().MipLevels;
+    md3dDevice->CreateShaderResourceView(texture->Resource.Get(), &srvDesc, hDescriptor);
+  }
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TexturingApp::GetStaticSamplers() {
