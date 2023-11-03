@@ -42,6 +42,7 @@ private:
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
   std::vector<std::unique_ptr<MeshGeometry>> mUnnamedGeometries;
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+  std::vector<std::unique_ptr<Material>> mUnnamedMaterials;
   std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
   std::vector<std::unique_ptr<Texture>> mUnnamedTextures;
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
@@ -112,10 +113,13 @@ private:
 };
 
 void TexturingApp::BuildMaterials() {
+  int srvHeapIndex = 0;
+  int cbIndex = 0;
+
   auto brick = std::make_unique<Material>();
   brick->Name = "brick";
-  brick->MatCBIndex = 0;
-  brick->DiffuseSrvHeapIndex = 0;
+  brick->MatCBIndex = cbIndex++;
+  brick->DiffuseSrvHeapIndex = srvHeapIndex++;
   brick->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
   brick->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
   // Relatively smooth.
@@ -123,8 +127,8 @@ void TexturingApp::BuildMaterials() {
 
   auto stone = std::make_unique<Material>();
   stone->Name = "stone";
-  stone->MatCBIndex = 1;
-  stone->DiffuseSrvHeapIndex = 1;
+  stone->MatCBIndex = cbIndex++;
+  stone->DiffuseSrvHeapIndex = srvHeapIndex++;
   stone->DiffuseAlbedo = XMFLOAT4(Colors::LightSteelBlue);
   stone->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
   // Rougher than brick.
@@ -132,8 +136,8 @@ void TexturingApp::BuildMaterials() {
 
   auto tile = std::make_unique<Material>();
   tile->Name = "tile";
-  tile->MatCBIndex = 2;
-  tile->DiffuseSrvHeapIndex = 2;
+  tile->MatCBIndex = cbIndex++;
+  tile->DiffuseSrvHeapIndex = srvHeapIndex++;
   tile->DiffuseAlbedo = XMFLOAT4(Colors::LightGray);
   tile->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
   // Rougher than brick, but smoother than stone.
@@ -142,12 +146,43 @@ void TexturingApp::BuildMaterials() {
   mMaterials["brick"] = std::move(brick);
   mMaterials["stone"] = std::move(stone);
   mMaterials["tile"] = std::move(tile);
+
+  mUnnamedMaterials.resize(mUnnamedTextures.size());
+  for (int i = 0; i < mUnnamedTextures.size(); ++i) {
+    auto material = std::make_unique<Material>();
+    // TODO.
+    material->Name = "unnamed";
+    material->MatCBIndex = cbIndex++;
+    material->DiffuseSrvHeapIndex = srvHeapIndex++;
+    material->DiffuseAlbedo = XMFLOAT4(Colors::White);
+    material->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    // Rougher than brick.
+    material->Roughness = 0.3f;
+
+    mUnnamedMaterials[i] = std::move(material);
+  }
 }
 
 void TexturingApp::UpdateMaterialCBs(const GameTimer& gt) {
   auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
   for (auto& e : mMaterials) {
     Material* mat = e.second.get();
+    if (mat->NumFramesDirty > 0) {
+      XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
+      // The application changed the material. Update the copies stored in constant
+      // buffers of each of the frame resources.
+      MaterialConstants matConstants;
+      matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+      matConstants.FresnelR0 = mat->FresnelR0;
+      matConstants.Roughness = mat->Roughness;
+      XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
+
+      currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+      mat->NumFramesDirty--;
+    }
+  }
+  for (auto& mat : mUnnamedMaterials) {
     if (mat->NumFramesDirty > 0) {
       XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
 
@@ -290,10 +325,10 @@ void TexturingApp::BuildRenderItems()
     unnamedGeomRenderItem->World = Math::Identity4x4();
     unnamedGeomRenderItem->TexTransform = Math::Identity4x4();
     // TODO.
-    unnamedGeomRenderItem->ObjCBIndex = 2;
-    // TODO.
-    unnamedGeomRenderItem->Mat = mMaterials["brick"].get();
+    unnamedGeomRenderItem->ObjCBIndex = objCBIndex++;
+    unnamedGeomRenderItem->ObjCBIndex = 3;
     unnamedGeomRenderItem->Geo = mUnnamedGeometries[i].get();
+    unnamedGeomRenderItem->Mat = mUnnamedMaterials[unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].TextureIndex].get();
     unnamedGeomRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     unnamedGeomRenderItem->IndexCount = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].IndexCount;
     unnamedGeomRenderItem->StartIndexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].StartIndexLocation;
@@ -327,7 +362,7 @@ void TexturingApp::BuildFrameResources() {
       // 1 pass.
       1,
       (UINT) mAllRenderItems.size(),
-      (UINT) mMaterials.size()
+      (UINT) mMaterials.size() + mUnnamedMaterials.size()
     ));
   }
 }
@@ -734,6 +769,7 @@ void TexturingApp::BuildGeometryFromGLTF() {
         submesh.IndexCount = (UINT)indices.size();
         submesh.StartIndexLocation = 0;
         submesh.BaseVertexLocation = 0;
+        submesh.TextureIndex = loadedData.texture;
 
         geo->DrawArgs["mainModel"] = submesh;
 
