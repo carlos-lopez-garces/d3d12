@@ -132,6 +132,9 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
     // Load vertex normals.
     LoadPrimitiveNormals(primitive, primitiveData);
 
+    // Load vertex UVs.
+    LoadPrimitiveUVs(primitive, primitiveData);
+
     return primitiveData;
 }
 
@@ -195,5 +198,20 @@ void GLTFLoader::LoadPrimitiveNormals(
 
     for (size_t i = 0; i < accessor.count; ++i) {
         primitiveData.normals.push_back(*(const XMFLOAT3 *)(data + i * stride));
+    }
+}
+
+void GLTFLoader::LoadPrimitiveUVs(
+    tinygltf::Primitive &primitive,
+    GLTFPrimitiveData &primitiveData
+) const {
+    const tinygltf::Accessor &accessor = mModel.accessors[primitive.attributes["TEXCOORD_0"]];
+    const tinygltf::BufferView &bufferView = mModel.bufferViews[accessor.bufferView];
+    const tinygltf::Buffer &buffer = mModel.buffers[bufferView.buffer];
+    int stride = accessor.ByteStride(bufferView);
+    const uint8_t *data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
+
+    for (size_t i = 0; i < accessor.count; ++i) {
+        primitiveData.uvs.push_back(*(const XMFLOAT2 *)(data + i * stride));
     }
 }

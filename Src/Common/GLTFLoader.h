@@ -15,6 +15,7 @@ struct GLTFPrimitiveData {
     vector<XMFLOAT3> positions;
     vector<uint16_t> indices;
     vector<XMFLOAT3> normals;
+    vector<XMFLOAT2> uvs;
 };
 
 class GLTFLoader {
@@ -46,6 +47,11 @@ private:
     ) const;
 
     void LoadPrimitiveNormals(
+        tinygltf::Primitive &primitive,
+        GLTFPrimitiveData &primitiveData
+    ) const;
+
+    void LoadPrimitiveUVs(
         tinygltf::Primitive &primitive,
         GLTFPrimitiveData &primitiveData
     ) const;
