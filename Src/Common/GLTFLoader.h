@@ -33,4 +33,9 @@ private:
     string mFilename;
 
     tinygltf::Model mModel;
+
+    void LoadPrimitivePositions(
+        tinygltf::Primitive &primitive,
+        GLTFPrimitiveData &primitiveData
+    ) const;
 };

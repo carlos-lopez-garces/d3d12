@@ -156,16 +156,21 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
     }
 
     // Load vertex positions.
+    LoadPrimitivePositions(primitive, primitiveData);
 
+    return primitiveData;
+}
+
+void GLTFLoader::LoadPrimitivePositions(
+    tinygltf::Primitive &primitive, GLTFPrimitiveData &primitiveData
+) const {
     const tinygltf::Accessor &accessor = mModel.accessors[primitive.attributes["POSITION"]];
     const tinygltf::BufferView &bufferView = mModel.bufferViews[accessor.bufferView];
     const tinygltf::Buffer &buffer = mModel.buffers[bufferView.buffer];
-    stride = accessor.ByteStride(bufferView);
+    int stride = accessor.ByteStride(bufferView);
     const uint8_t *data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
 
     for (size_t i = 0; i < accessor.count; ++i) {
         primitiveData.vertices.push_back(*(const XMFLOAT3 *)(data + i * stride));
     }
-
-    return primitiveData;
 }
