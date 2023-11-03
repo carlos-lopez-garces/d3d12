@@ -43,6 +43,7 @@ private:
   std::vector<std::unique_ptr<MeshGeometry>> mUnnamedGeometries;
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
   std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+  std::vector<std::unique_ptr<Texture>> mUnnamedTextures;
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
   FrameResource *mCurrFrameResource = nullptr;
   int mCurrFrameResourceIndex = 0;
@@ -104,6 +105,7 @@ private:
   virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
   virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
   void LoadTextures();
+  void LoadTexturesFromGLTF();
   void BuildDescriptorHeaps();
   std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
   void OnKeyboardInput(const GameTimer& gt);
@@ -750,7 +752,9 @@ bool TexturingApp::Initialize() {
   mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
   LoadModelFromGLTF();
+
   LoadTextures();
+  LoadTexturesFromGLTF();
 
   BuildRootSignature();
   BuildDescriptorHeaps();
@@ -875,6 +879,27 @@ void TexturingApp::LoadTextures() {
   mTextures[bricksTex->Name] = std::move(bricksTex);
   mTextures[stoneTex->Name] = std::move(stoneTex);
   mTextures[tileTex->Name] = std::move(tileTex);
+}
+
+void TexturingApp::LoadTexturesFromGLTF() {
+  vector<GLTFTextureData> gltfTextures = mGLTFLoader->LoadTextures();
+  unsigned int textureCount = gltfTextures.size();
+  mUnnamedTextures.resize(textureCount);
+
+  for (int i = 0; i < textureCount; ++i) {
+    GLTFTextureData &gltfTexture = gltfTextures[i];
+
+    auto texture = make_unique<Texture>();
+    texture->Filename = AnsiToWString(gltfTexture.uri);
+
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+      md3dDevice.Get(),
+      mCommandList.Get(),
+      texture->Filename.c_str(),
+      texture->Resource,
+      texture->UploadHeap
+    ));
+  }
 }
 
 void TexturingApp::BuildDescriptorHeaps() {
