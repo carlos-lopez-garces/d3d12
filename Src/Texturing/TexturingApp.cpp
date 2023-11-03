@@ -202,7 +202,7 @@ void TexturingApp::BuildRenderItems()
   boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
   boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
   boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
-  mAllRenderItems.push_back(std::move(boxRitem));
+  // mAllRenderItems.push_back(std::move(boxRitem));
 
   auto gridRitem = std::make_unique<RenderItem>();
   gridRitem->World = Math::Identity4x4();
@@ -681,6 +681,7 @@ void TexturingApp::BuildGeometryFromGLTF() {
 
         float scale = 1.005;
         for (int i = 0; i < loadedData.positions.size(); ++i) {
+            // TODO: overloaded operator XMFLOAT3 * float not recognized.
             vertices[i].Pos.x = loadedData.positions[i].x * scale;
             vertices[i].Pos.y = loadedData.positions[i].y * scale;
             vertices[i].Pos.z = loadedData.positions[i].z * scale;
@@ -688,6 +689,9 @@ void TexturingApp::BuildGeometryFromGLTF() {
             vertices[i].Normal.x = loadedData.normals[i].x;
             vertices[i].Normal.y = loadedData.normals[i].y;
             vertices[i].Normal.z = loadedData.normals[i].z;
+
+            vertices[i].TexC.x = loadedData.uvs[i].x;
+            vertices[i].TexC.y = loadedData.uvs[i].y;
         }
 
         const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
