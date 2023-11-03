@@ -3,6 +3,7 @@
 #include "../Common/d3dApp.h"
 #include "../Common/DDSTextureLoader.h"
 #include "../Common/GeometryGenerator.h"
+#include "../Common/GLTFLoader.h"
 #include "FrameResource.h"
 #include <DirectXMath.h>
 
@@ -37,6 +38,7 @@ struct RenderItem {
 class TexturingApp : public D3DApp {
 private:
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+  std::vector<std::unique_ptr<MeshGeometry>> mUnnamedGeometries;
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
   std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;
@@ -93,6 +95,7 @@ private:
   void Draw(const GameTimer& gt);
   void UpdateMainPassCB(const GameTimer &gt);
   void BuildShapeGeometry();
+  void BuildGeometryFromGLTF();
   virtual void Update(const GameTimer& gt) override;
   virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
   virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
@@ -646,6 +649,71 @@ void TexturingApp::BuildShapeGeometry() {
   mGeometries[geo->Name] = std::move(geo);
 }
 
+void TexturingApp::BuildGeometryFromGLTF() {
+    std::unique_ptr<GLTFLoader> gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+    gltfLoader->LoadModel();
+
+    unsigned int primCount = gltfLoader->getPrimitiveCount();
+    mUnnamedGeometries.resize(primCount);
+
+    for (int primIdx = 0; primIdx < primCount; ++primIdx) {
+        GLTFPrimitiveData loadedData = gltfLoader->LoadPrimitive(0, primIdx);
+
+        std::vector<std::uint16_t> &indices = loadedData.indices;
+        std::vector<Vertex> vertices(loadedData.vertices.size());
+
+        float scale = 0.005;
+        for (int i = 0; i < loadedData.vertices.size(); ++i) {
+            vertices[i].Pos.x = loadedData.vertices[i].x * scale;
+            vertices[i].Pos.y = loadedData.vertices[i].y * scale;
+            vertices[i].Pos.z = loadedData.vertices[i].z * scale;
+        }
+
+        const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+        const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+        auto geo = std::make_unique<MeshGeometry>();
+        geo->Name = std::to_string(primIdx);
+
+        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+        CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+        CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+        geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            vertices.data(),
+            vbByteSize,
+            geo->VertexBufferUploader
+        );
+
+        geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            indices.data(),
+            ibByteSize,
+            geo->IndexBufferUploader
+        );
+
+        geo->VertexByteStride = sizeof(Vertex);
+        geo->VertexBufferByteSize = vbByteSize;
+        geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+        geo->IndexBufferByteSize = ibByteSize;
+
+        SubmeshGeometry submesh;
+        submesh.IndexCount = (UINT)indices.size();
+        submesh.StartIndexLocation = 0;
+        submesh.BaseVertexLocation = 0;
+
+        geo->DrawArgs["mainModel"] = submesh;
+
+        mUnnamedGeometries[primIdx] = std::move(geo);
+    }
+}
+
 bool TexturingApp::Initialize() {
   if (!D3DApp::Initialize()) {
     return false;
@@ -662,6 +730,7 @@ bool TexturingApp::Initialize() {
   BuildDescriptorHeaps();
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
+  BuildGeometryFromGLTF();
   BuildMaterials();
   // Render items associate geometry instances and materials.
   BuildRenderItems();
