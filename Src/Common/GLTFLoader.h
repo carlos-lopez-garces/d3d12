@@ -16,6 +16,7 @@ struct GLTFPrimitiveData {
     vector<uint16_t> indices;
     vector<XMFLOAT3> normals;
     vector<XMFLOAT2> uvs;
+    int texture;
 };
 
 struct GLTFTextureData {
@@ -60,6 +61,11 @@ private:
     ) const;
 
     void LoadPrimitiveUVs(
+        tinygltf::Primitive &primitive,
+        GLTFPrimitiveData &primitiveData
+    ) const;
+
+    void LoadPrimitiveTexture(
         tinygltf::Primitive &primitive,
         GLTFPrimitiveData &primitiveData
     ) const;

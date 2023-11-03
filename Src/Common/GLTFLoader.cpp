@@ -138,6 +138,9 @@ GLTFPrimitiveData GLTFLoader::LoadPrimitive(int nodeIdx, int primitiveIdx) const
     // Load vertex UVs.
     LoadPrimitiveUVs(primitive, primitiveData);
 
+    // Load texture.
+    LoadPrimitiveTexture(primitive, primitiveData);
+
     return primitiveData;
 }
 
@@ -217,6 +220,13 @@ void GLTFLoader::LoadPrimitiveUVs(
     for (size_t i = 0; i < accessor.count; ++i) {
         primitiveData.uvs.push_back(*(const XMFLOAT2 *)(data + i * stride));
     }
+}
+
+void GLTFLoader::LoadPrimitiveTexture(
+        tinygltf::Primitive &primitive,
+        GLTFPrimitiveData &primitiveData
+) const {
+    primitiveData.texture = mModel.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
 }
 
 vector<GLTFTextureData> GLTFLoader::LoadTextures() {
