@@ -4,8 +4,10 @@
 #include "../Common/GeometryGenerator.h"
 #include "../Common/DDSTextureLoader.h"
 #include "../Common/Camera.h"
+#include "../Common/GLTFLoader.h"
 #include "FrameResource.h"
 #include "ShadowMap.h"
+#include <iostream>
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -51,13 +53,16 @@ public:
   virtual bool Initialize() override;
 
 private:
+  void LoadModelFromGLTF();
   void LoadTextures();
+  void LoadTexturesFromGLTF();
   void BuildRootSignature();
   void BuildDescriptorHeaps();
   virtual void CreateRtvAndDsvDescriptorHeaps() override;
   void BuildShadersAndInputLayout();
   void BuildShapeGeometry();
   void BuildMainModelGeometry();
+  void BuildGeometryFromGLTF();
   void BuildPSOs();
   void BuildFrameResources();
   void BuildMaterials();
@@ -84,6 +89,8 @@ private:
   void OnKeyboardInput(const GameTimer& gt);
 
 private:
+  std::unique_ptr<GLTFLoader> mGLTFLoader;
+
   // Contains every vertex of the scene.
   DirectX::BoundingSphere mSceneBounds;
 
@@ -92,6 +99,7 @@ private:
   std::unique_ptr<ShadowMap> mShadowMap;
 
   std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+  std::vector<std::unique_ptr<Texture>> mUnnamedTextures;
 
   ComPtr<ID3D12RootSignature> mRootSignature;
 
@@ -117,8 +125,10 @@ private:
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
   std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+  std::vector<std::unique_ptr<MeshGeometry>> mUnnamedGeometries;
 
   std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+  std::vector<std::unique_ptr<Material>> mUnnamedMaterials;
 
   std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
@@ -181,12 +191,16 @@ bool ShadowMappingApp::Initialize() {
   // what the camera sees, the size of the window, and the size of the viewport.
   mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(), 2048, 2048);
 
+  LoadModelFromGLTF();
+
   LoadTextures();
+  LoadTexturesFromGLTF();
   BuildRootSignature();
   BuildDescriptorHeaps();
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
   BuildMainModelGeometry();
+  BuildGeometryFromGLTF();
   BuildMaterials();
   BuildRenderItems();
   BuildFrameResources();
@@ -200,6 +214,11 @@ bool ShadowMappingApp::Initialize() {
   FlushCommandQueue();
 
   return true;
+}
+
+void ShadowMappingApp::LoadModelFromGLTF() {
+  mGLTFLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+  mGLTFLoader->LoadModel();
 }
 
 void ShadowMappingApp::LoadTextures() {
@@ -281,16 +300,40 @@ void ShadowMappingApp::LoadTextures() {
   // ================================================================
 }
 
+void ShadowMappingApp::LoadTexturesFromGLTF() {
+  vector<GLTFTextureData> gltfTextures = mGLTFLoader->LoadTextures();
+  unsigned int textureCount = gltfTextures.size();
+  mUnnamedTextures.resize(textureCount);
+
+  for (int i = 0; i < textureCount; ++i) {
+    GLTFTextureData &gltfTexture = gltfTextures[i];
+
+    auto texture = make_unique<Texture>();
+    texture->Filename = AnsiToWString(gltfTexture.uri);
+
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+      md3dDevice.Get(),
+      mCommandList.Get(),
+      texture->Filename.c_str(),
+      texture->Resource,
+      texture->UploadHeap
+    ));
+
+    mUnnamedTextures[i] = std::move(texture);
+  }
+}
+
 void ShadowMappingApp::BuildRootSignature() {
   // TextureCube gCubeMap : register(t0).
   CD3DX12_DESCRIPTOR_RANGE texTable0;
   // 2 descriptors in range, base shader register 0, register space 0.
   texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
 
-  // Texture2D gTextureMaps[10] : register(t2).
+  // Texture2D gTextureMaps[100] : register(t2).
+  // Sponza glTF file comes with about 70 textures, that's why 100.
   CD3DX12_DESCRIPTOR_RANGE texTable1;
-  // 10 descriptors in range, base shader register 2, register space 0.
-  texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+  // 100 descriptors in range, base shader register 2, register space 0.
+  texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 80, 2, 0);
 
 #define NUM_ROOT_PARAMETERS 5
   CD3DX12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
@@ -427,8 +470,8 @@ void ShadowMappingApp::BuildRootSignature() {
 
 void ShadowMappingApp::BuildDescriptorHeaps() {
   D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-  // TODO: why do we need 14?
-  srvHeapDesc.NumDescriptors = 14;
+  // TODO: why do we need 14? 6 textures, each with their normal map, and the sky.
+  srvHeapDesc.NumDescriptors = 14 + mUnnamedTextures.size();
   srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
   srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -464,6 +507,17 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
     hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
   }
 
+  // SRV descriptors for textures loaded from glTF.
+  for (auto &tex : mUnnamedTextures) {
+    // hDescriptor is pointing at the start of the block in the SRV heap where
+    // we are going to create this SRV.
+    srvDesc.Format = tex->Resource->GetDesc().Format;
+    srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+    md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
+    // Advance hDescriptor to point to the block where the next SRV will be created.
+    hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+  }
+
   // SRV for the sky cubemap.
   srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
   srvDesc.TextureCube.MostDetailedMip = 0;
@@ -473,7 +527,7 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);
 
   // Save heap indices of SRVs.
-  mSkyTexHeapIndex = (UINT)tex2DList.size();
+  mSkyTexHeapIndex = (UINT)tex2DList.size() + mUnnamedTextures.size();
   mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
   mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
   mNullTexSrvIndex = mNullCubeSrvIndex + 1;
@@ -818,6 +872,77 @@ void ShadowMappingApp::BuildMainModelGeometry() {
   mGeometries[geo->Name] = std::move(geo);
 }
 
+void ShadowMappingApp::BuildGeometryFromGLTF() {
+    unsigned int primCount = mGLTFLoader->getPrimitiveCount();
+    mUnnamedGeometries.resize(primCount);
+
+    for (int primIdx = 0; primIdx < primCount; ++primIdx) {
+        GLTFPrimitiveData loadedData = mGLTFLoader->LoadPrimitive(0, primIdx);
+
+        std::vector<std::uint16_t> &indices = loadedData.indices;
+        std::vector<Vertex> vertices(loadedData.positions.size());
+
+        float scale = 0.08;
+        for (int i = 0; i < loadedData.positions.size(); ++i) {
+            // TODO: overloaded operator XMFLOAT3 * float not recognized.
+            vertices[i].Pos.x = loadedData.positions[i].x * scale;
+            vertices[i].Pos.y = loadedData.positions[i].y * scale;
+            vertices[i].Pos.z = loadedData.positions[i].z * scale;
+
+            vertices[i].Normal.x = loadedData.normals[i].x;
+            vertices[i].Normal.y = loadedData.normals[i].y;
+            vertices[i].Normal.z = loadedData.normals[i].z;
+
+            vertices[i].TexC.x = loadedData.uvs[i].x;
+            vertices[i].TexC.y = loadedData.uvs[i].y;
+        }
+
+        const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+        const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+        auto geo = std::make_unique<MeshGeometry>();
+        geo->Name = std::to_string(primIdx);
+
+        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+        CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+        CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+        geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            vertices.data(),
+            vbByteSize,
+            geo->VertexBufferUploader
+        );
+
+        geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            indices.data(),
+            ibByteSize,
+            geo->IndexBufferUploader
+        );
+
+        geo->VertexByteStride = sizeof(Vertex);
+        geo->VertexBufferByteSize = vbByteSize;
+        geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+        geo->IndexBufferByteSize = ibByteSize;
+
+        SubmeshGeometry submesh;
+        submesh.IndexCount = (UINT)indices.size();
+        submesh.StartIndexLocation = 0;
+        submesh.BaseVertexLocation = 0;
+        submesh.TextureIndex = loadedData.texture;
+
+        geo->DrawArgs["mainModel"] = submesh;
+
+        mUnnamedGeometries[primIdx] = std::move(geo);
+    }
+}
+
 void ShadowMappingApp::BuildMaterials() {
   auto bricks = std::make_unique<Material>();
   bricks->Name = "bricks";
@@ -869,6 +994,27 @@ void ShadowMappingApp::BuildMaterials() {
   mMaterials["mirror"] = std::move(mirror);
   mMaterials["mainModelMat"] = std::move(mainModelMat);
   mMaterials["sky"] = std::move(sky);
+
+  int cbIndex = 5;
+  int srvHeapIndex = 8;
+  // TODO.
+  // int normalSrvHeapIndex = 9;
+  mUnnamedMaterials.resize(mUnnamedTextures.size());
+  for (int i = 0; i < mUnnamedTextures.size(); ++i) {
+    auto material = std::make_unique<Material>();
+    // TODO.
+    material->Name = "unnamed";
+    material->MatCBIndex = cbIndex++;
+    material->DiffuseSrvHeapIndex = srvHeapIndex++;
+    // TODO.
+    // material->NormalSrvHeapIndex = normalSrvHeapIndex++;
+    material->DiffuseAlbedo = XMFLOAT4(Colors::White);
+    material->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    // Rougher than brick.
+    material->Roughness = 0.3f;
+
+    mUnnamedMaterials[i] = std::move(material);
+  }
 }
 
 void ShadowMappingApp::BuildRenderItems() {
@@ -1006,12 +1152,29 @@ void ShadowMappingApp::BuildRenderItems() {
 		mAllRitems.push_back(std::move(leftSphereRitem));
 		mAllRitems.push_back(std::move(rightSphereRitem));
 	}
+
+  for (int i = 0; i < mUnnamedGeometries.size(); ++i) {
+    auto unnamedGeomRenderItem = std::make_unique<RenderItem>();
+    unnamedGeomRenderItem->World = Math::Identity4x4();
+    unnamedGeomRenderItem->TexTransform = Math::Identity4x4();
+    // TODO.
+    unnamedGeomRenderItem->ObjCBIndex = objCBIndex++;
+    // unnamedGeomRenderItem->ObjCBIndex = 3;
+    unnamedGeomRenderItem->Geo = mUnnamedGeometries[i].get();
+    unnamedGeomRenderItem->Mat = mUnnamedMaterials[unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].TextureIndex].get();
+    unnamedGeomRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    unnamedGeomRenderItem->IndexCount = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].IndexCount;
+    unnamedGeomRenderItem->StartIndexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].StartIndexLocation;
+    unnamedGeomRenderItem->BaseVertexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
+    mRitemLayer[(int)RenderLayer::Opaque].push_back(unnamedGeomRenderItem.get());
+    mAllRitems.push_back(std::move(unnamedGeomRenderItem));
+  }
 }
 
 void ShadowMappingApp::BuildFrameResources() {
   for(int i = 0; i < gNumFrameResources; ++i) {
     mFrameResources.push_back(std::make_unique<FrameResource>(
-      md3dDevice.Get(), 2, (UINT)mAllRitems.size(), (UINT)mMaterials.size())
+      md3dDevice.Get(), 2, (UINT)mAllRitems.size(), (UINT)mMaterials.size() + mUnnamedMaterials.size())
     );
   }
 }
@@ -1176,7 +1339,12 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   };
   mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-  ThrowIfFailed(mSwapChain->Present(0, 0));
+  try {
+    ThrowIfFailed(mSwapChain->Present(0, 0));
+  } catch (DxException &e) {
+    std::cout << md3dDevice->GetDeviceRemovedReason() << std::endl;
+    exit(1);
+  }
 	mCurrentBackBuffer = (mCurrentBackBuffer + 1) % SwapChainBufferCount;
 
   mCurrFrameResource->Fence = ++mCurrentFence;
@@ -1373,6 +1541,24 @@ void ShadowMappingApp::UpdateMaterialBuffer(const GameTimer &gt) {
 			matData.NormalMapIndex = mat->NormalSrvHeapIndex;
 			currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
 			mat->NumFramesDirty--;
+    }
+  }
+
+  for (auto &mat : mUnnamedMaterials) {
+    if (mat->NumFramesDirty > 0) {
+      XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
+      // The application changed the material. Update the copies stored in constant
+      // buffers of each of the frame resources.
+      MaterialData matConstants;
+      matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+      matConstants.FresnelR0 = mat->FresnelR0;
+      matConstants.Roughness = mat->Roughness;
+      XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
+      // TODO.
+      matConstants.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+      currMaterialBuffer->CopyData(mat->MatCBIndex, matConstants);
+      mat->NumFramesDirty--;
     }
   }
 }
