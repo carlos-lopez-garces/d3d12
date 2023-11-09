@@ -507,17 +507,6 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
     hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
   }
 
-  // SRV descriptors for textures loaded from glTF.
-  for (auto &tex : mUnnamedTextures) {
-    // hDescriptor is pointing at the start of the block in the SRV heap where
-    // we are going to create this SRV.
-    srvDesc.Format = tex->Resource->GetDesc().Format;
-    srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
-    md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
-    // Advance hDescriptor to point to the block where the next SRV will be created.
-    hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
-  }
-
   // SRV for the sky cubemap.
   srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
   srvDesc.TextureCube.MostDetailedMip = 0;
@@ -525,6 +514,7 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
   srvDesc.Format = skyCubeMap->GetDesc().Format;
   md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);
+  hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 
   // Save heap indices of SRVs.
   mSkyTexHeapIndex = (UINT)tex2DList.size() + mUnnamedTextures.size();
@@ -547,6 +537,18 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   srvDesc.Texture2D.MipLevels = 1;
   srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
   md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+  hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+
+  // SRV descriptors for textures loaded from glTF.
+  for (auto &tex : mUnnamedTextures) {
+    // hDescriptor is pointing at the start of the block in the SRV heap where
+    // we are going to create this SRV.
+    srvDesc.Format = tex->Resource->GetDesc().Format;
+    srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+    md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
+    // Advance hDescriptor to point to the block where the next SRV will be created.
+    hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+  }
 
   mShadowMap->BuildDescriptors(
     CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
