@@ -257,47 +257,6 @@ void ShadowMappingApp::LoadTextures() {
     ));
     mTextures[textureMap->Name] = std::move(textureMap);
   }
-
-  // THIS WAS MY ATTEMPT.
-  // ================================================================
-  //D3D12_RESOURCE_DESC textureDesc;
-  //textureDesc.Alignment = 0;
-  //textureDesc.DepthOrArraySize = 0;
-  //textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-  //textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-  //textureDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
-  //// Actual image dimensions of bricks.dds, stone.dds, and tile.dds.
-  //textureDesc.Width = 512;
-  //textureDesc.Height = 512;
-  //textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-  //textureDesc.MipLevels = 3;
-  //textureDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-  //textureDesc.SampleDesc.Quality = m4xMsaaState ? m4xMsaaQuality - 1 : 1;
-
-  //D3D12_CLEAR_VALUE clearValue;
-  //clearValue.Format = DXGI_FORMAT_R32G32B32A32_UINT;
-  //clearValue.Color[0] = 1.0f;
-  //clearValue.Color[1] = 1.0f;
-  //clearValue.Color[2] = 1.0f;
-  //clearValue.Color[2] = 0.0f;
-
-  //ThrowIfFailed(md3dDevice->CreateCommittedResource(
-  //  &CD3DX12_HEAP_PROPERTIES(D3D12_DEFAULT),
-  //  D3D12_HEAP_FLAG_NONE,
-  //  &textureDesc,
-  //  D3D12_RESOURCE_STATE_GENERIC_READ,
-  //  &clearValue,
-  //  IID_PPV_ARGS(&mTextureResource.Get())
-  //));
-
-  //CreateDDSTextureFromFile12(
-  //  md3dDevice.Get(),
-  //  mCommandList.Get(),
-  //  L"/Assets/bricks.dds",
-  //  &mTextureResource,
-
-  //);
-  // ================================================================
 }
 
 void ShadowMappingApp::LoadTexturesFromGLTF() {
@@ -333,7 +292,7 @@ void ShadowMappingApp::BuildRootSignature() {
   // Sponza glTF file comes with about 70 textures, that's why 100.
   CD3DX12_DESCRIPTOR_RANGE texTable1;
   // 100 descriptors in range, base shader register 2, register space 0.
-  texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 80, 2, 0);
+  texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 100, 2, 0);
 
 #define NUM_ROOT_PARAMETERS 5
   CD3DX12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
@@ -376,96 +335,6 @@ void ShadowMappingApp::BuildRootSignature() {
     serializedRootSignature->GetBufferSize(),
     IID_PPV_ARGS(mRootSignature.GetAddressOf())
   ));
-
-  // THIS WAS MY ATTEMPT.
-  // ================================================================
-  // CBV, SRV, and UAV descriptor heaps.
-  //D3D12_DESCRIPTOR_HEAP_DESC cbvSrvUavHeapDesc;
-  //cbvSrvUavHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-  //cbvSrvUavHeapDesc.NumDescriptors = 4;
-  //cbvSrvUavHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-  //cbvSrvUavHeapDesc.NodeMask = 0;
-  //
-  //ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-  //  &cbvSrvUavHeapDesc,
-  //  IID_PPV_ARGS(&mCbvSrvUavHeap)
-  //));
-  //
-  //#define NUM_ROOT_PARAMETERS 6
-  //
-  //// D3A12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
-  //CD3DX12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
-  //
-  //// TextureCube gCubeMap : register(t0).
-  //// rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-  //// rootParameters[0].Descriptor.ShaderRegister = 0;
-  //// rootParameters[0].Descriptor.RegisterSpace = 0;
-  //// rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  //rootParameters[0].InitAsShaderResourceView(0);
-  //
-  //// Texture2D gShadowMap : register(t1).
-  //// rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-  //// rootParameters[1].Descriptor.ShaderRegister = 1;
-  //// rootParameters[1].Descriptor.RegisterSpace = 0;
-  //// rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  //rootParameters[1].InitAsShaderResourceView(1);
-  //
-  //// Texture2D gTextureMaps[10] : register(t2).
-  //// rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-  //// rootParameters[2].Descriptor.ShaderRegister = 2;
-  //// rootParameters[2].Descriptor.RegisterSpace = 0;
-  //// rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  //rootParameters[2].InitAsShaderResourceView(2);
-  //
-  //// StructuredBuffer<MaterialData> gMaterialData : register(t0, space1).
-  //// rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-  //// rootParameters[3].Descriptor.ShaderRegister = 0;
-  //// rootParameters[3].Descriptor.RegisterSpace = 1;
-  //// rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  //// Register 0 again, but in register space 1 now.
-  //rootParameters[3].InitAsShaderResourceView(0, 1);
-  //
-  //// cbuffer cbPerObject : register(b0).
-  //// rootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-  //// rootParameters[4].Descriptor.ShaderRegister = 0;
-  //// rootParameters[4].Descriptor.RegisterSpace = 0;
-  //// rootParameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  //rootParameters[4].InitAsConstantBufferView(0);
-  //
-  //// cbuffer cbPass : register(b1).
-  //// rootParameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-  //// rootParameters[5].Descriptor.ShaderRegister = 1;
-  //// rootParameters[5].Descriptor.RegisterSpace = 0;
-  //// rootParameters[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  //rootParameters[5].InitAsConstantBufferView(1);
-  //
-  //D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-  //rootSignatureDesc.NumParameters = NUM_ROOT_PARAMETERS;
-  //rootSignatureDesc.pParameters = rootParameters;
-  //rootSignatureDesc.NumStaticSamplers = 7;
-  //rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-  //
-  //ID3DBlob *serializedRootSignature;
-  //ThrowIfFailed(D3DCreateBlob(
-  //  sizeof(rootSignatureDesc),
-  //  &serializedRootSignature
-  //));
-  //
-  //ThrowIfFailed(D3D12SerializeRootSignature(
-  //  &rootSignatureDesc,
-  //  D3D_ROOT_SIGNATURE_VERSION_1,
-  //  &serializedRootSignature,
-  //  nullptr
-  //));
-  //
-  //ThrowIfFailed(md3dDevice->CreateRootSignature(
-  //  // Only 1 GPU.
-  //  0,
-  //  serializedRootSignature->GetBufferPointer(),
-  //  serializedRootSignature->GetBufferSize(),
-  //  IID_PPV_ARGS(&mRootSignature)
-  //));
-  // ================================================================
 }
 
 void ShadowMappingApp::BuildDescriptorHeaps() {
@@ -559,64 +428,6 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
     CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
     CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize)
   );
-
-  // THIS WAS MY ATTEMPT.
-  // ================================================================
-
-  // // SRV heap.
-  // D3D12_DESCRIPTOR_HEAP_DESC srvDescriptorHeapDesc;
-  // srvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-  // srvDescriptorHeapDesc.NumDescriptors = 1;
-  // srvDescriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-  // srvDescriptorHeapDesc.NodeMask = 0;
-  // ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-  //   &srvDescriptorHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)
-  // ));
-
-  // // Shader resource.
-  // // StructuredBuffer<MaterialData> gMaterialData : register(t0, space1).
-  // CD3DX12_RESOURCE_DESC srvResource;
-  // srvResource.Alignment = 0;
-  // srvResource.DepthOrArraySize = 1;
-  // srvResource.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-  // srvResource.Flags = D3D12_RESOURCE_FLAG_NONE;
-  // srvResource.Format = DXGI_FORMAT_UNKNOWN;
-  // // TODO: more ...
-  // CD3DX12_HEAP_PROPERTIES srvHeapProperties;
-  // srvHeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
-  // ThrowIfFailed(md3dDevice->CreateCommittedResource(
-  //   &srvHeapProperties,
-  //   D3D12_HEAP_FLAG_NONE,
-  //   &srvResource,
-  //   D3D12_RESOURCE_STATE_GENERIC_READ,
-  //   nullptr,
-  //   IID_PPV_ARGS(mSrvResource.GetAddressOf())
-  // ));
-
-  // // SRV.
-  // D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-  // srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-  // srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-  // srvDesc.Shader4ComponentMapping = D3D12_SHADER_COMPONENT_MAPPING_FROM_MEMORY_COMPONENT_0;
-  // // TODO.
-  // srvDesc.Buffer;
-  // md3dDevice->CreateShaderResourceView(
-  //   mSrvResource.Get(),
-  //   &srvDesc,
-  //   mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart()
-  // );
-
-  // // CBV heap.
-  // D3D12_DESCRIPTOR_HEAP_DESC cbvDescriptorHeapDesc;
-  // cbvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-  // cbvDescriptorHeapDesc.NumDescriptors = 2;
-  // cbvDescriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-  // cbvDescriptorHeapDesc.NodeMask = 0;
-  // ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-  //   &cbvDescriptorHeapDesc, IID_PPV_ARGS(mCbvDescriptorHeap.GetAddressOf())
-  // ));
-
-  // ================================================================
 }
 
 void ShadowMappingApp::BuildShadersAndInputLayout() {
@@ -1327,8 +1138,8 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   mCommandList->SetPipelineState(mPSOs["opaque"].Get());
   DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-  // mCommandList->SetPipelineState(mPSOs["debug"].Get());
-  // DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+  mCommandList->SetPipelineState(mPSOs["debug"].Get());
+  DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
 
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
