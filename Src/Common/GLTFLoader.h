@@ -17,10 +17,16 @@ struct GLTFPrimitiveData {
     vector<XMFLOAT3> normals;
     vector<XMFLOAT2> uvs;
     int texture;
+    int material;
 };
 
 struct GLTFTextureData {
     string uri;
+};
+
+struct GLTFMaterialData {
+    int baseColorMap;
+    int normalMap;
 };
 
 class GLTFLoader {
@@ -38,6 +44,11 @@ public:
 
     // Loads all textures.
     vector<GLTFTextureData> LoadTextures();
+
+    // Loads all materials.
+    vector<GLTFMaterialData> LoadMaterials(
+        const std::vector<GLTFTextureData> &textures
+    );
 
 private:
     string mFilename;
@@ -68,5 +79,10 @@ private:
     void LoadPrimitiveTexture(
         tinygltf::Primitive &primitive,
         GLTFPrimitiveData &primitiveData
+    ) const;
+
+    void LoadPrimitiveMaterial(
+      tinygltf::Primitive& primitive,
+      GLTFPrimitiveData& primitiveData
     ) const;
 };
