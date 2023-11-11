@@ -517,7 +517,7 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 
   // Save heap indices of SRVs.
-  mSkyTexHeapIndex = (UINT)tex2DList.size() + mUnnamedTextures.size();
+  mSkyTexHeapIndex = (UINT)tex2DList.size();
   mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
   mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
   mNullTexSrvIndex = mNullCubeSrvIndex + 1;
