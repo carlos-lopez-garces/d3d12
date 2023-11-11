@@ -56,6 +56,7 @@ private:
   void LoadModelFromGLTF();
   void LoadTextures();
   void LoadTexturesFromGLTF();
+  void LoadMaterialsFromFromGLTF();
   void BuildRootSignature();
   void BuildDescriptorHeaps();
   virtual void CreateRtvAndDsvDescriptorHeaps() override;
@@ -90,6 +91,10 @@ private:
 
 private:
   std::unique_ptr<GLTFLoader> mGLTFLoader;
+
+  std::vector<GLTFTextureData> mGLTFTextures;
+
+  std::vector<GLTFMaterialData> mGLTFMaterials;
 
   // Contains every vertex of the scene.
   DirectX::BoundingSphere mSceneBounds;
@@ -195,6 +200,7 @@ bool ShadowMappingApp::Initialize() {
 
   LoadTextures();
   LoadTexturesFromGLTF();
+  LoadMaterialsFromFromGLTF();
   BuildRootSignature();
   BuildDescriptorHeaps();
   BuildShadersAndInputLayout();
@@ -260,12 +266,12 @@ void ShadowMappingApp::LoadTextures() {
 }
 
 void ShadowMappingApp::LoadTexturesFromGLTF() {
-  vector<GLTFTextureData> gltfTextures = mGLTFLoader->LoadTextures();
-  unsigned int textureCount = gltfTextures.size();
+  mGLTFTextures = mGLTFLoader->LoadTextures();
+  unsigned int textureCount = mGLTFTextures.size();
   mUnnamedTextures.resize(textureCount);
 
   for (int i = 0; i < textureCount; ++i) {
-    GLTFTextureData &gltfTexture = gltfTextures[i];
+    GLTFTextureData &gltfTexture = mGLTFTextures[i];
 
     auto texture = make_unique<Texture>();
     texture->Filename = AnsiToWString(gltfTexture.uri);
@@ -280,6 +286,10 @@ void ShadowMappingApp::LoadTexturesFromGLTF() {
 
     mUnnamedTextures[i] = std::move(texture);
   }
+}
+
+void ShadowMappingApp::LoadMaterialsFromFromGLTF() {
+  mGLTFMaterials = mGLTFLoader->LoadMaterials(mGLTFTextures);
 }
 
 void ShadowMappingApp::BuildRootSignature() {
@@ -413,14 +423,25 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
   srvDesc.Texture2D.MostDetailedMip = 0;
   srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-  for (auto &tex : mUnnamedTextures) {
+  // mUnnamedMaterials hasn't been initialized yet.
+  for (int i = 0; i < mGLTFMaterials.size(); ++i) {
     // hDescriptor is pointing at the start of the block in the SRV heap where
     // we are going to create this SRV.
+    auto &tex = mUnnamedTextures[mGLTFMaterials[i].baseColorMap];
     srvDesc.Format = tex->Resource->GetDesc().Format;
     srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
     md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
     // Advance hDescriptor to point to the block where the next SRV will be created.
     hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+
+    if (mGLTFMaterials[i].normalMap != -1) {
+      auto &nor = mUnnamedTextures[mGLTFMaterials[i].normalMap];
+      srvDesc.Format = nor->Resource->GetDesc().Format;
+      srvDesc.Texture2D.MipLevels = nor->Resource->GetDesc().MipLevels;
+      md3dDevice->CreateShaderResourceView(nor->Resource.Get(), &srvDesc, hDescriptor);
+      // Advance hDescriptor to point to the block where the next SRV will be created.
+      hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+    }
   }
 
   mShadowMap->BuildDescriptors(
@@ -753,6 +774,7 @@ void ShadowMappingApp::BuildGeometryFromGLTF() {
         submesh.StartIndexLocation = 0;
         submesh.BaseVertexLocation = 0;
         submesh.TextureIndex = loadedData.texture;
+        submesh.MaterialIndex = loadedData.material;
 
         geo->DrawArgs["mainModel"] = submesh;
 
@@ -814,17 +836,16 @@ void ShadowMappingApp::BuildMaterials() {
 
   int cbIndex = 5;
   int srvHeapIndex = 8;
-  // TODO.
-  // int normalSrvHeapIndex = 9;
-  mUnnamedMaterials.resize(mUnnamedTextures.size());
-  for (int i = 0; i < mUnnamedTextures.size(); ++i) {
+  mUnnamedMaterials.resize(mGLTFMaterials.size());
+  for (int i = 0; i < mUnnamedMaterials.size(); ++i) {
     auto material = std::make_unique<Material>();
     // TODO.
     material->Name = "unnamed";
     material->MatCBIndex = cbIndex++;
     material->DiffuseSrvHeapIndex = srvHeapIndex++;
-    // TODO.
-    // material->NormalSrvHeapIndex = normalSrvHeapIndex++;
+    if (mGLTFMaterials[i].normalMap != -1) {
+      material->NormalSrvHeapIndex = srvHeapIndex++;
+    }
     material->DiffuseAlbedo = XMFLOAT4(Colors::White);
     material->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
     // Rougher than brick.
@@ -978,7 +999,7 @@ void ShadowMappingApp::BuildRenderItems() {
     unnamedGeomRenderItem->ObjCBIndex = objCBIndex++;
     // unnamedGeomRenderItem->ObjCBIndex = 3;
     unnamedGeomRenderItem->Geo = mUnnamedGeometries[i].get();
-    unnamedGeomRenderItem->Mat = mUnnamedMaterials[unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].TextureIndex].get();
+    unnamedGeomRenderItem->Mat = mUnnamedMaterials[unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].MaterialIndex].get();
     unnamedGeomRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     unnamedGeomRenderItem->IndexCount = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].IndexCount;
     unnamedGeomRenderItem->StartIndexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].StartIndexLocation;
@@ -1372,8 +1393,8 @@ void ShadowMappingApp::UpdateMaterialBuffer(const GameTimer &gt) {
       matConstants.FresnelR0 = mat->FresnelR0;
       matConstants.Roughness = mat->Roughness;
       XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
-      // TODO.
       matConstants.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+      matConstants.NormalMapIndex = mat->NormalSrvHeapIndex;
       currMaterialBuffer->CopyData(mat->MatCBIndex, matConstants);
       mat->NumFramesDirty--;
     }
