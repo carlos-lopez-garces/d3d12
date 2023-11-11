@@ -733,6 +733,17 @@ void ShadowMappingApp::BuildGeometryFromGLTF() {
 
             vertices[i].TexC.x = loadedData.uvs[i].x;
             vertices[i].TexC.y = loadedData.uvs[i].y;
+
+            XMVECTOR N = XMLoadFloat3(&vertices[i].Normal);
+            XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+            if (fabsf(XMVectorGetX(XMVector3Dot(N, up))) < 1.0f - 0.001f) {
+              XMVECTOR T = XMVector3Normalize(XMVector3Cross(up, N));
+              XMStoreFloat3(&vertices[i].TangentU, T);
+            } else {
+              up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+              XMVECTOR T = XMVector3Normalize(XMVector3Cross(N, up));
+              XMStoreFloat3(&vertices[i].TangentU, T);
+            }
         }
 
         const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
@@ -995,9 +1006,7 @@ void ShadowMappingApp::BuildRenderItems() {
     auto unnamedGeomRenderItem = std::make_unique<RenderItem>();
     unnamedGeomRenderItem->World = Math::Identity4x4();
     unnamedGeomRenderItem->TexTransform = Math::Identity4x4();
-    // TODO.
     unnamedGeomRenderItem->ObjCBIndex = objCBIndex++;
-    // unnamedGeomRenderItem->ObjCBIndex = 3;
     unnamedGeomRenderItem->Geo = mUnnamedGeometries[i].get();
     unnamedGeomRenderItem->Mat = mUnnamedMaterials[unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].MaterialIndex].get();
     unnamedGeomRenderItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
