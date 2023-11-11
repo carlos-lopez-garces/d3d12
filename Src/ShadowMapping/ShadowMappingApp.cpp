@@ -540,6 +540,10 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
 
   // SRV descriptors for textures loaded from glTF.
+  srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srvDesc.Texture2D.MostDetailedMip = 0;
+  srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
   for (auto &tex : mUnnamedTextures) {
     // hDescriptor is pointing at the start of the block in the SRV heap where
     // we are going to create this SRV.
