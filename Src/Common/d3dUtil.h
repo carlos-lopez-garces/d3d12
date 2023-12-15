@@ -94,6 +94,7 @@ struct SubmeshGeometry {
   INT BaseVertexLocation = 0;
   DirectX::BoundingBox Bounds;
   int TextureIndex;
+  int MaterialIndex;
 };
 
 // Groups a vertex and index buffer together. May be made of component SubmeshGeometry's.

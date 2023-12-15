@@ -26,7 +26,8 @@ struct MaterialData {
 TextureCube gCubeMap : register(t0);
 Texture2D gShadowMap : register(t1);
 
-Texture2D gTextureMaps[80] : register(t2);
+// Size matches texTable1 in ShadowMappingApp.
+Texture2D gTextureMaps[100] : register(t2);
 
 StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);
 

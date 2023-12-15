@@ -920,7 +920,7 @@ void ShadowMappingApp::BuildRenderItems() {
   mainModelRitem->StartIndexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].StartIndexLocation;
   mainModelRitem->BaseVertexLocation = mainModelRitem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
 
-  mRitemLayer[(int)RenderLayer::Opaque].push_back(mainModelRitem.get());
+  // mRitemLayer[(int)RenderLayer::Opaque].push_back(mainModelRitem.get());
   mAllRitems.push_back(std::move(mainModelRitem));
 
   auto gridRitem = std::make_unique<RenderItem>();
@@ -934,7 +934,7 @@ void ShadowMappingApp::BuildRenderItems() {
   gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
   gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
+	// mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
 	mAllRitems.push_back(std::move(gridRitem));
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
@@ -948,8 +948,8 @@ void ShadowMappingApp::BuildRenderItems() {
 		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i*5.0f);
 		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i*5.0f);
 
-		XMMATRIX leftSphereWorld = XMMatrixTranslation(-3.0f, 2.5f, -10.0f + i*5.0f);
-		XMMATRIX rightSphereWorld = XMMatrixTranslation(+3.0f, 2.5f, -10.0f + i*5.0f);
+		XMMATRIX leftSphereWorld = XMMatrixScaling(3.0f, 3.0f, 3.0f) * XMMatrixTranslation(-10.0f, 2.5f, -10.0f + i*5.0f);
+		XMMATRIX rightSphereWorld = XMMatrixScaling(3.0f, 3.0f, 3.0f) * XMMatrixTranslation(0.0f, 2.5f, -10.0f + i*5.0f);
 
 		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
 		XMStoreFloat4x4(&leftCylRitem->TexTransform, brickTexTransform);

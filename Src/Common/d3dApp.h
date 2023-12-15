@@ -45,7 +45,7 @@ protected:
   HINSTANCE mhAppInst = nullptr;
   // Window handle.
   HWND mhMainWnd = nullptr;
-  std::wstring mMainWndCaption = L"d3d App";
+  std::wstring mMainWndCaption = L"CDX";
 
   // States.
   bool mAppPaused = false;
