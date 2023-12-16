@@ -38,6 +38,8 @@ struct RenderItem {
   UINT StartIndexLocation = 0;
   int BaseVertexLocation = 0;
   bool Visible = true;
+
+  BoundingBox BBox;
 };
 
 enum class RenderLayer : int {
@@ -1655,6 +1657,48 @@ void ShadowMappingApp::Pick(int sx, int sy) {
     XMMATRIX inverseVinverseW = XMMatrixMultiply(inverseV, inverseW);
     pickingRayOrigin = XMVector3TransformCoord(pickingRayOrigin, inverseVinverseW);
     pickingRayDirection = XMVector3Normalize(XMVector3TransformNormal(pickingRayDirection, inverseVinverseW));
+
+    float minT = 0.0f;
+
+    // Test ray against object bounding box for intersection.
+    if (ritem->BBox.Intersects(pickingRayOrigin, pickingRayDirection, minT)) {
+      auto vertices = (Vertex *) geo->VertexBufferCPU->GetBufferPointer();
+      auto indices = (std::uint32_t *) geo->IndexBufferCPU->GetBufferPointer();
+
+      UINT triangleCount = ritem->IndexCount / 3;
+
+      minT = Math::Infinity;
+      for (UINT i = 0; i < triangleCount; ++i) {
+        UINT i0 = indices[3*i];
+        UINT i1 = indices[3*i + 1];
+        UINT i2 = indices[3*i + 2];
+
+        XMVECTOR v0 = XMLoadFloat3(&vertices[i0].Pos);
+        XMVECTOR v1 = XMLoadFloat3(&vertices[i1].Pos);
+        XMVECTOR v2 = XMLoadFloat3(&vertices[i2].Pos);
+
+        // Test each triangle for intersection. TriangleTests is a namespace from
+        // DirectXMath.
+        float t = 0.0f;
+        if (TriangleTests::Intersects(pickingRayOrigin, pickingRayDirection, v0, v1, v2, t)) {
+          if (t >= minT) {
+            continue;
+          }
+
+          minT = t;
+
+          // The picked render item is this intersected triangle.
+          mPickedRitem->Visible = true;
+          mPickedRitem->IndexCount = 3;
+          mPickedRitem->BaseVertexLocation = 0;
+          mPickedRitem->World = ritem->World;
+          mPickedRitem->NumFramesDirty = gNumFrameResources;
+
+          // Offset into the original index buffer.
+          mPickedRitem->StartIndexLocation = 3*i;
+        }
+      }
+    }
   }
 }
 
