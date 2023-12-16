@@ -93,6 +93,8 @@ private:
   virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
   void OnKeyboardInput(const GameTimer& gt);
 
+  void Pick(int sx, int sy);
+
 private:
   std::unique_ptr<GLTFLoader> mGLTFLoader;
 
@@ -1610,6 +1612,25 @@ void ShadowMappingApp::OnKeyboardInput(const GameTimer &gt) {
 		mCamera.Strafe(10.0f*dt);
 
 	mCamera.UpdateViewMatrix();
+}
+
+void ShadowMappingApp::Pick(int sx, int sy) {
+  XMFLOAT4X4 P = mCamera.GetProj4x4f();
+
+  // The () operator of XMFLOAT4X4 retrieves a matrix entry (row, column),
+  // in this case P00 = 1 / (r * tan(alpha/2)), where r is aspect ratio
+  // and alpha is the FOV angle.
+  float vx = (2.0f*sx / mClientWidth - 1.0f) / P(0, 0);
+
+  // P11 = 1 / tan(alpha/2).
+  float vy = (-2.0f*sy / mClientHeight + 1.0f) / P(1, 1);
+
+  // Picking ray in view space.
+
+  // Origin is view space origin.
+  XMVECTOR pickingRayOrigin = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+
+  XMVECTOR pickingRayDirection = XMVectorSet(vx, vy, 1.0f, 0.0f);
 }
 
 int WINAPI WinMain(
