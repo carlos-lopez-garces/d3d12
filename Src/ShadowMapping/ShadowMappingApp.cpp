@@ -37,6 +37,7 @@ struct RenderItem {
   UINT IndexCount = 0;
   UINT StartIndexLocation = 0;
   int BaseVertexLocation = 0;
+  bool Visible = true;
 };
 
 enum class RenderLayer : int {
@@ -172,6 +173,8 @@ private:
   PassConstants mShadowPassCB;
 
   POINT mLastMousePos;
+
+  RenderItem *mPickedRitem;
 };
 
 ShadowMappingApp::ShadowMappingApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -1631,6 +1634,28 @@ void ShadowMappingApp::Pick(int sx, int sy) {
   XMVECTOR pickingRayOrigin = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
   XMVECTOR pickingRayDirection = XMVectorSet(vx, vy, 1.0f, 0.0f);
+
+  mPickedRitem->Visible = false;
+
+  for (auto ritem : mRitemLayer[(int)RenderLayer::Opaque]) {
+    if (!ritem->Visible) {
+      continue;
+    }
+
+    auto geo = ritem->Geo;
+
+    XMMATRIX V = mCamera.GetView();
+    // Matrix is noninvertible if determinant is 0.
+    XMMATRIX inverseV = XMMatrixInverse(&XMMatrixDeterminant(V), V);
+
+    XMMATRIX W = XMLoadFloat4x4(&ritem->World);
+    XMMATRIX inverseW = XMMatrixInverse(&XMMatrixDeterminant(W), W);
+
+    // Picking ray in local space.
+    XMMATRIX inverseVinverseW = XMMatrixMultiply(inverseV, inverseW);
+    pickingRayOrigin = XMVector3TransformCoord(pickingRayOrigin, inverseVinverseW);
+    pickingRayDirection = XMVector3Normalize(XMVector3TransformNormal(pickingRayDirection, inverseVinverseW));
+  }
 }
 
 int WINAPI WinMain(
