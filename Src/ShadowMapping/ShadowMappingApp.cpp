@@ -1158,6 +1158,15 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   D3D12_CPU_DESCRIPTOR_HANDLE depthStencilViewHandle = DepthStencilView();
   mCommandList->OMSetRenderTargets(1, &backBufferViewHandle, true, &depthStencilViewHandle);
 
+
+  // Variable rate shading.
+  // TODO: D3D12_VARIABLE_SHADING_RATE_TIER_NOT_SUPPORTED.
+  D3D12_FEATURE_DATA_D3D12_OPTIONS6 options;
+  md3dDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS6, &options, sizeof(options));
+  if(options.VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER_1) {
+    mCommandList->RSSetShadingRate(D3D12_SHADING_RATE_1X2, nullptr);
+  }
+
   auto passCB = mCurrFrameResource->PassCB->Resource();
   mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 

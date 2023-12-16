@@ -69,7 +69,7 @@ protected:
   // The applications puts commands in the queue and the GPU processes them eventually.
   Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;
   Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;
-  Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;
+  Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList5> mCommandList;
   // 1 front and 1 back buffers are usually enough.
   static const int SwapChainBufferCount = 2;
   int mCurrentBackBuffer = 0;
