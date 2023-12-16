@@ -1,6 +1,9 @@
 #include <WindowsX.h>
 
 #include "d3dApp.h"
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx12.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace std;
@@ -407,6 +410,13 @@ int D3DApp::Run() {
       // when it's being resized.
       if (!mAppPaused) {
         CalculateFrameStats();
+
+        // ImGui frame.
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+        ImGui::ShowDemoWindow();
+
         // Update the scene.
         Update(mTimer);
         Draw(mTimer);
@@ -562,10 +572,15 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
   return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 // The window procedure that determines the behavior of the window. Invoked by
 // DispatchMessage in the render/message loop.
 // See docs.microsoft.com/en-us/windows/win32/learnwin32/writing-the-window-procedure.
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+  if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam)) {
+    return true;
+  }
   return D3DApp::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
 }
 

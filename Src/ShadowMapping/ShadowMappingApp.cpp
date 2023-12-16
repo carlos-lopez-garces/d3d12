@@ -8,6 +8,9 @@
 #include "FrameResource.h"
 #include "ShadowMap.h"
 #include <iostream>
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx12.h"
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -53,6 +56,7 @@ public:
   virtual bool Initialize() override;
 
 private:
+  void InitializeGUI();
   void LoadModelFromGLTF();
   void LoadTextures();
   void LoadTexturesFromGLTF();
@@ -180,6 +184,10 @@ ShadowMappingApp::~ShadowMappingApp() {
   if (md3dDevice != nullptr) {
     FlushCommandQueue();
   }
+
+  ImGui_ImplDX12_Shutdown();
+  ImGui_ImplWin32_Shutdown();
+  ImGui::DestroyContext();
 }
 
 bool ShadowMappingApp::Initialize() {
@@ -203,6 +211,7 @@ bool ShadowMappingApp::Initialize() {
   LoadMaterialsFromFromGLTF();
   BuildRootSignature();
   BuildDescriptorHeaps();
+  InitializeGUI();
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
   BuildMainModelGeometry();
@@ -220,6 +229,29 @@ bool ShadowMappingApp::Initialize() {
   FlushCommandQueue();
 
   return true;
+}
+
+void ShadowMappingApp::InitializeGUI() {
+  IMGUI_CHECKVERSION();
+
+  ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; 
+
+  ImGui_ImplWin32_Init(mhMainWnd);
+
+  ImGui_ImplDX12_Init(
+    md3dDevice.Get(),
+    // Number of frames in flight.
+    gNumFrameResources,
+    mBackBufferFormat, 
+    // imgui needs SRV descriptors for its font textures.
+    mSrvDescriptorHeap.Get(),
+    mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+    mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
+  );
 }
 
 void ShadowMappingApp::LoadModelFromGLTF() {
@@ -1182,6 +1214,10 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
 
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
+
+  // Draw UI.
+  ImGui::Render();
+  ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
 
   CD3DX12_RESOURCE_BARRIER backBufferPresentBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
     CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT
