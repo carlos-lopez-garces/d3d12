@@ -9,6 +9,10 @@ SSAOMap::SSAOMap(
 
 }
 
+ID3D12Resource *SSAOMap::GetNormalMap() {
+    return mNormalMap.Get();
+}
+
 void SSAOMap::OnResize(UINT width, UINT height) {
     if (width != mRenderTargetWidth || height != mRenderTargetHeight) {
         mRenderTargetWidth = width;
