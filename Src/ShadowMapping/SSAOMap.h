@@ -11,9 +11,15 @@ private:
     D3D12_VIEWPORT mViewport;
     D3D12_RECT mScissor;
     Microsoft::WRL::ComPtr<ID3D12Resource> mNormalMap;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuSrv;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mhNormalMapGpuSrv;
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuRtv;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mhDepthMapCpuSrv;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mhDepthMapGpuSrv;
 
 public:
+    static const DXGI_FORMAT NormalMapFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+
     SSAOMap(
         ID3D12Device *device,
         ID3D12GraphicsCommandList *cmdList,
@@ -21,9 +27,20 @@ public:
         UINT height
     );
 
+    ID3D12Resource *GetNormalMap();
+
     void OnResize(UINT width, UINT height);
 
     void BuildResources();
+    
+    void BuildDescriptors(
+        ID3D12Resource *depthStencilBuffer,
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
+		CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuRtv,
+        UINT cbvSrvUavDescriptorSize,
+        UINT rtvDescriptorSize
+    );
 
-    ID3D12Resource *GetNormalMap();
+    void RebuildDescriptors(ID3D12Resource *depthStencilBuffer);
 };
