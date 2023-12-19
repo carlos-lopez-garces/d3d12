@@ -10,6 +10,7 @@ private:
     UINT mRenderTargetHeight;
     D3D12_VIEWPORT mViewport;
     D3D12_RECT mScissor;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mNormalMap;
 
 public:
     SSAOMap(
@@ -20,4 +21,6 @@ public:
     );
 
     void OnResize(UINT width, UINT height);
+
+    void BuildResources();
 };
