@@ -46,6 +46,7 @@ enum class RenderLayer : int {
 	Opaque = 0,
   Debug,
 	Sky,
+  Picking,
 	Count
 };
 
@@ -210,6 +211,8 @@ bool ShadowMappingApp::Initialize() {
   // Fixed resolution? Yes, because what the light source sees is independent of
   // what the camera sees, the size of the window, and the size of the viewport.
   mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(), 2048, 2048);
+
+  mPickedRitem = nullptr;
 
   LoadModelFromGLTF();
 
@@ -389,7 +392,8 @@ void ShadowMappingApp::BuildRootSignature() {
 void ShadowMappingApp::BuildDescriptorHeaps() {
   D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
   // TODO: why do we need 14? 6 textures, each with their normal map, and the sky.
-  srvHeapDesc.NumDescriptors = 14 + mUnnamedTextures.size();
+  // +1 for picking.
+  srvHeapDesc.NumDescriptors = 14 + mUnnamedTextures.size() + 1;
   srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
   srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -586,12 +590,22 @@ void ShadowMappingApp::BuildShapeGeometry() {
 		vertices[k].TangentU = grid.Vertices[i].TangentU;
 	}
 
+  XMFLOAT3 f3MinVertex(+Math::Infinity, +Math::Infinity, +Math::Infinity);
+	XMFLOAT3 f3MaxVertex(-Math::Infinity, -Math::Infinity, -Math::Infinity);
+  XMVECTOR minVertex = XMLoadFloat3(&f3MinVertex);
+	XMVECTOR maxVertex = XMLoadFloat3(&f3MaxVertex);
 	for(size_t i = 0; i < sphere.Vertices.size(); ++i, ++k) {
 		vertices[k].Pos = sphere.Vertices[i].Position;
 		vertices[k].Normal = sphere.Vertices[i].Normal;
 		vertices[k].TexC = sphere.Vertices[i].TexC;
 		vertices[k].TangentU = sphere.Vertices[i].TangentU;
+
+    XMVECTOR P = XMLoadFloat3(&vertices[k].Pos);
+    minVertex = XMVectorMin(minVertex, P);
+    maxVertex = XMVectorMax(maxVertex, P);
 	}
+  XMStoreFloat3(&sphereSubmesh.Bounds.Center, 0.5f * (minVertex + maxVertex));
+  XMStoreFloat3(&sphereSubmesh.Bounds.Extents, 0.5f * (maxVertex - minVertex));
 
 	for(size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k) {
 		vertices[k].Pos = cylinder.Vertices[i].Position;
@@ -759,12 +773,20 @@ void ShadowMappingApp::BuildGeometryFromGLTF() {
         std::vector<std::uint16_t> &indices = loadedData.indices;
         std::vector<Vertex> vertices(loadedData.positions.size());
 
+        XMFLOAT3 f3MinVertex(+Math::Infinity, +Math::Infinity, +Math::Infinity);
+        XMFLOAT3 f3MaxVertex(-Math::Infinity, -Math::Infinity, -Math::Infinity);
+        XMVECTOR minVertex = XMLoadFloat3(&f3MinVertex);
+        XMVECTOR maxVertex = XMLoadFloat3(&f3MaxVertex);
+
         float scale = 0.08;
         for (int i = 0; i < loadedData.positions.size(); ++i) {
             // TODO: overloaded operator XMFLOAT3 * float not recognized.
             vertices[i].Pos.x = loadedData.positions[i].x * scale;
             vertices[i].Pos.y = loadedData.positions[i].y * scale;
             vertices[i].Pos.z = loadedData.positions[i].z * scale;
+            XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
+            minVertex = XMVectorMin(minVertex, P);
+            maxVertex = XMVectorMax(maxVertex, P);
 
             vertices[i].Normal.x = loadedData.normals[i].x;
             vertices[i].Normal.y = loadedData.normals[i].y;
@@ -825,6 +847,8 @@ void ShadowMappingApp::BuildGeometryFromGLTF() {
         submesh.BaseVertexLocation = 0;
         submesh.TextureIndex = loadedData.texture;
         submesh.MaterialIndex = loadedData.material;
+        XMStoreFloat3(&submesh.Bounds.Center, 0.5f * (minVertex + maxVertex));
+        XMStoreFloat3(&submesh.Bounds.Extents, 0.5f * (maxVertex - minVertex));
 
         geo->DrawArgs["mainModel"] = submesh;
 
@@ -903,6 +927,16 @@ void ShadowMappingApp::BuildMaterials() {
 
     mUnnamedMaterials[i] = std::move(material);
   }
+
+  // For picking/selection.
+  auto picking = std::make_unique<Material>();
+	picking->Name = "picking";
+	picking->MatCBIndex = cbIndex++;
+	picking->DiffuseSrvHeapIndex = srvHeapIndex++;
+	picking->DiffuseAlbedo = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+	picking->FresnelR0 = XMFLOAT3(0.06f, 0.06f, 0.06f);
+	picking->Roughness = 1.0f;
+	mMaterials["picking"] = std::move(picking);
 }
 
 void ShadowMappingApp::BuildRenderItems() {
@@ -1019,6 +1053,7 @@ void ShadowMappingApp::BuildRenderItems() {
 		leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
 		leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 		leftSphereRitem->BaseVertexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+    leftSphereRitem->BBox = leftSphereRitem->Geo->DrawArgs["sphere"].Bounds;
 
 		XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
 		rightSphereRitem->TexTransform = Math::Identity4x4();
@@ -1029,6 +1064,7 @@ void ShadowMappingApp::BuildRenderItems() {
 		rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
 		rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
 		rightSphereRitem->BaseVertexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].BaseVertexLocation;
+    rightSphereRitem->BBox = rightSphereRitem->Geo->DrawArgs["sphere"].Bounds;
 
 		// mRitemLayer[(int)RenderLayer::Opaque].push_back(leftCylRitem.get());
 		// mRitemLayer[(int)RenderLayer::Opaque].push_back(rightCylRitem.get());
@@ -1052,9 +1088,22 @@ void ShadowMappingApp::BuildRenderItems() {
     unnamedGeomRenderItem->IndexCount = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].IndexCount;
     unnamedGeomRenderItem->StartIndexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].StartIndexLocation;
     unnamedGeomRenderItem->BaseVertexLocation = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].BaseVertexLocation;
+    unnamedGeomRenderItem->BBox = unnamedGeomRenderItem->Geo->DrawArgs["mainModel"].Bounds;
     mRitemLayer[(int)RenderLayer::Opaque].push_back(unnamedGeomRenderItem.get());
     mAllRitems.push_back(std::move(unnamedGeomRenderItem));
   }
+
+  // Picking.
+  auto pickedRitem = std::make_unique<RenderItem>();
+  pickedRitem->Visible = false;
+  pickedRitem->ObjCBIndex = objCBIndex++;
+  pickedRitem->NumFramesDirty = gNumFrameResources;
+  pickedRitem->World = Math::Identity4x4();
+  pickedRitem->TexTransform = Math::Identity4x4();
+  pickedRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  mPickedRitem = pickedRitem.get();
+  mRitemLayer[(int)RenderLayer::Picking].push_back(pickedRitem.get());
+  mAllRitems.push_back(std::move(pickedRitem));
 }
 
 void ShadowMappingApp::BuildFrameResources() {
@@ -1141,6 +1190,24 @@ void ShadowMappingApp::BuildPSOs() {
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
     &skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"]))
   );
+
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pickingPsoDesc = opaquePsoDesc;
+  // <= instead of < because the picked triangle will be drawn twice: with opaque
+  // PSO followed by the picking PSO, and it will have the same depth (of course).
+  pickingPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+  D3D12_RENDER_TARGET_BLEND_DESC pickingBlendDesc;
+	pickingBlendDesc.BlendEnable = true;
+	pickingBlendDesc.LogicOpEnable = false;
+	pickingBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	pickingBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	pickingBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	pickingBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	pickingBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	pickingBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	pickingBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	pickingBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+  pickingPsoDesc.BlendState.RenderTarget[0] = pickingBlendDesc;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&pickingPsoDesc, IID_PPV_ARGS(&mPSOs["picking"])));
 }
 
 void ShadowMappingApp::CreateRtvAndDsvDescriptorHeaps()
@@ -1197,7 +1264,6 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   D3D12_CPU_DESCRIPTOR_HANDLE depthStencilViewHandle = DepthStencilView();
   mCommandList->OMSetRenderTargets(1, &backBufferViewHandle, true, &depthStencilViewHandle);
 
-
   // Variable rate shading.
   // TODO: D3D12_VARIABLE_SHADING_RATE_TIER_NOT_SUPPORTED.
   D3D12_FEATURE_DATA_D3D12_OPTIONS6 options;
@@ -1221,6 +1287,9 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
 
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
+
+  mCommandList->SetPipelineState(mPSOs["picking"].Get());
+  DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Picking]);
 
   // Draw UI.
   ImGui::Render();
@@ -1260,6 +1329,8 @@ void ShadowMappingApp::DrawRenderItems(
 
   for (size_t i = 0; i < ritems.size(); ++i) {
     auto ri = ritems[i];
+    if (!ri->Visible) continue;
+
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView = ri->Geo->VertexBufferView();
     D3D12_INDEX_BUFFER_VIEW indexBufferView = ri->Geo->IndexBufferView();
     cmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
@@ -1412,7 +1483,7 @@ void ShadowMappingApp::Update(const GameTimer &gt) {
 void ShadowMappingApp::UpdateObjectCBs(const GameTimer &gt) {
   auto currObjectCB = mCurrFrameResource->ObjectCB.get();
   for (auto &ritem : mAllRitems) {
-    if (ritem->NumFramesDirty > 0) {
+    if (ritem->NumFramesDirty > 0 && ritem->Visible) {
       XMMATRIX world = DirectX::XMLoadFloat4x4(&ritem->World);
       XMMATRIX texTransform = DirectX::XMLoadFloat4x4(&ritem->TexTransform);
       ObjectConstants objConstants;
@@ -1581,9 +1652,14 @@ void ShadowMappingApp::OnResize() {
 }
 
 void ShadowMappingApp::OnMouseDown(WPARAM btnState, int x, int y) {
-  mLastMousePos.x = x;
-  mLastMousePos.y = y;
-  SetCapture(mhMainWnd);
+  if ((btnState & MK_LBUTTON) != 0) {
+    mLastMousePos.x = x;
+    mLastMousePos.y = y;
+    SetCapture(mhMainWnd);
+  } else if ((btnState & MK_RBUTTON) != 0) {
+    // Pixel coordinates.
+    Pick(x, y);
+  }
 }
 
 void ShadowMappingApp::OnMouseUp(WPARAM btnState, int x, int y) {
@@ -1591,7 +1667,7 @@ void ShadowMappingApp::OnMouseUp(WPARAM btnState, int x, int y) {
 }
 
 void ShadowMappingApp::OnMouseMove(WPARAM btnState, int x, int y) {
-  if((btnState & MK_LBUTTON) != 0) {
+  if ((btnState & MK_LBUTTON) != 0) {
     float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
     float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
     mCamera.Pitch(dy);
@@ -1604,16 +1680,16 @@ void ShadowMappingApp::OnMouseMove(WPARAM btnState, int x, int y) {
 void ShadowMappingApp::OnKeyboardInput(const GameTimer &gt) {
 	const float dt = gt.DeltaTime();
 
-	if(GetAsyncKeyState('W') & 0x8000)
+	if (GetAsyncKeyState('W') & 0x8000)
 		mCamera.Walk(10.0f*dt);
 
-	if(GetAsyncKeyState('S') & 0x8000)
+	if (GetAsyncKeyState('S') & 0x8000)
 		mCamera.Walk(-10.0f*dt);
 
-	if(GetAsyncKeyState('A') & 0x8000)
+	if (GetAsyncKeyState('A') & 0x8000)
 		mCamera.Strafe(-10.0f*dt);
 
-	if(GetAsyncKeyState('D') & 0x8000)
+	if (GetAsyncKeyState('D') & 0x8000)
 		mCamera.Strafe(10.0f*dt);
 
 	mCamera.UpdateViewMatrix();
@@ -1637,6 +1713,10 @@ void ShadowMappingApp::Pick(int sx, int sy) {
 
   XMVECTOR pickingRayDirection = XMVectorSet(vx, vy, 1.0f, 0.0f);
 
+  XMMATRIX V = mCamera.GetView();
+  // Matrix is noninvertible if determinant is 0.
+  XMMATRIX inverseV = XMMatrixInverse(&XMMatrixDeterminant(V), V);
+
   mPickedRitem->Visible = false;
 
   for (auto ritem : mRitemLayer[(int)RenderLayer::Opaque]) {
@@ -1645,10 +1725,6 @@ void ShadowMappingApp::Pick(int sx, int sy) {
     }
 
     auto geo = ritem->Geo;
-
-    XMMATRIX V = mCamera.GetView();
-    // Matrix is noninvertible if determinant is 0.
-    XMMATRIX inverseV = XMMatrixInverse(&XMMatrixDeterminant(V), V);
 
     XMMATRIX W = XMLoadFloat4x4(&ritem->World);
     XMMATRIX inverseW = XMMatrixInverse(&XMMatrixDeterminant(W), W);
@@ -1663,7 +1739,7 @@ void ShadowMappingApp::Pick(int sx, int sy) {
     // Test ray against object bounding box for intersection.
     if (ritem->BBox.Intersects(pickingRayOrigin, pickingRayDirection, minT)) {
       auto vertices = (Vertex *) geo->VertexBufferCPU->GetBufferPointer();
-      auto indices = (std::uint32_t *) geo->IndexBufferCPU->GetBufferPointer();
+      auto indices = (uint16_t *) geo->IndexBufferCPU->GetBufferPointer();
 
       UINT triangleCount = ritem->IndexCount / 3;
 
@@ -1689,13 +1765,19 @@ void ShadowMappingApp::Pick(int sx, int sy) {
 
           // The picked render item is this intersected triangle.
           mPickedRitem->Visible = true;
+          // Only the 3 vertices of the picked triangle.
           mPickedRitem->IndexCount = 3;
           mPickedRitem->BaseVertexLocation = 0;
           mPickedRitem->World = ritem->World;
-          mPickedRitem->NumFramesDirty = gNumFrameResources;
-
+          mPickedRitem->Mat = mMaterials["picking"].get();
+          mPickedRitem->Geo = ritem->Geo;
           // Offset into the original index buffer.
           mPickedRitem->StartIndexLocation = 3*i;
+          mPickedRitem->NumFramesDirty = gNumFrameResources;
+          // mPickedRitem->ObjCBIndex = ritem->ObjCBIndex;
+
+          mMaterials["picking"].get()->NumFramesDirty = gNumFrameResources;
+          mMaterials["picking"].get()->DiffuseSrvHeapIndex = ritem->Mat->DiffuseSrvHeapIndex;
         }
       }
     }
