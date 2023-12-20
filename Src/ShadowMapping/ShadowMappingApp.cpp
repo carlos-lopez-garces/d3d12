@@ -1318,6 +1318,25 @@ void ShadowMappingApp::BuildPSOs() {
   normalsPsoDesc.SampleDesc.Quality = 0;
   normalsPsoDesc.DSVFormat = mDepthStencilFormat;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&normalsPsoDesc, IID_PPV_ARGS(&mPSOs["normals"])));
+
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC ssaoPsoDesc = opaquePsoDesc;
+  // SSAO shader doesn't use a vertex buffer, which means that there aren't vertex
+  // attribute and, therefore, there's no need for an input layout.
+  ssaoPsoDesc.InputLayout = {
+    // pInputElementDescs.
+    nullptr,
+    // NumElements.
+    0
+  };
+  ssaoPsoDesc.pRootSignature = mSSAORootSignature.Get();
+  ssaoPsoDesc.VS = {
+     reinterpret_cast<BYTE*>(mShaders["ssaoVS"]->GetBufferPointer()),
+      mShaders["ssaoVS"]->GetBufferSize()
+  };
+  ssaoPsoDesc.PS = {
+     reinterpret_cast<BYTE*>(mShaders["ssaoPS"]->GetBufferPointer()),
+      mShaders["ssaoPS"]->GetBufferSize()
+  };
 }
 
 void ShadowMappingApp::CreateRtvAndDsvDescriptorHeaps() {
