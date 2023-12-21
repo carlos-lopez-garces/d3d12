@@ -165,11 +165,25 @@ void SSAOMap::Compute(
     // Register b0 in SSAO shader: cbSSAO.
     cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);
     // Register b1 in SSAO shader: gHorizontalBlur.
-    cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
+    //cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
     // Register t0 in SSAO shader: gNormalMap.
-    cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
+    cmdList->SetGraphicsRootDescriptorTable(1, mhNormalMapGpuSrv);
 
-    // cmdList->SetPipelineState(mSSAOPso);
+    cmdList->SetPipelineState(mSSAOPso);
+
+    // SSAO shader doesn't use a vertex buffer.
+    cmdList->IASetVertexBuffers(0, 0, nullptr);
+    cmdList->IASetIndexBuffer(nullptr);
+    cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    // 1 instance, 6 vertices: the 2 triangles of a fullscreen quad.
+    cmdList->DrawInstanced(6, 1, 0, 0);
+
+    CD3DX12_RESOURCE_BARRIER ambientMapReadBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        mAmbientMap0.Get(),
+        D3D12_RESOURCE_STATE_RENDER_TARGET,
+        D3D12_RESOURCE_STATE_GENERIC_READ
+    );
+    cmdList->ResourceBarrier(1, &ambientMapReadBarrier);    
 }
 
 void SSAOMap::SetPSOs(ID3D12PipelineState *ssaoPso) {
