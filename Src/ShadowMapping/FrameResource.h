@@ -51,6 +51,12 @@ struct ObjectConstants {
 	UINT ObjPad2;
 };
 
+struct SSAOConstants {
+  DirectX::XMFLOAT4X4 Proj;
+  DirectX::XMFLOAT4X4 InvProj;
+  DirectX::XMFLOAT4X4 ProjTex;
+};
+
 struct FrameResource {
 public:
   FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
@@ -62,5 +68,6 @@ public:
   std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
   std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
   std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;
+  std::unique_ptr<UploadBuffer<SSAOConstants>> SSAOCB = nullptr;
   UINT64 Fence = 0;
 };
