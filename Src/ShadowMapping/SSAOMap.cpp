@@ -152,3 +152,7 @@ void SSAOMap::Compute(
 
     cmdList->SetPipelineState(*m);
 }
+
+void SSAOMap::SetPSOs(ID3D12PipelineState *ssaoPso) {
+    mSSAOPso = ssaoPso;
+}
