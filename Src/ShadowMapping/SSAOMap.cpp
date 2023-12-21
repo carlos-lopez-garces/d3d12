@@ -64,6 +64,25 @@ void SSAOMap::BuildResources() {
         &normalClearValue,
         IID_PPV_ARGS(&mNormalMap)
     ));
+
+    // Ambient map 0.
+    mAmbientMap0 = nullptr;
+
+    // Since SSAO map is low frequency, half the resolution suffices.
+    textureDesc.Width = mRenderTargetWidth / 2;
+    textureDesc.Height = mRenderTargetHeight / 2;
+    textureDesc.Format = AmbientMapFormat;
+
+    float ambientClearColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
+    CD3DX12_CLEAR_VALUE ambientClearValue = CD3DX12_CLEAR_VALUE(AmbientMapFormat, ambientClearColor);
+    ThrowIfFailed(md3dDevice->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &textureDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        &ambientClearValue,
+        IID_PPV_ARGS(&mAmbientMap0))
+    );   
 }
 
 void SSAOMap::BuildDescriptors(
@@ -150,7 +169,7 @@ void SSAOMap::Compute(
     // Register t0 in SSAO shader: gNormalMap.
     cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
 
-    cmdList->SetPipelineState(*m);
+    // cmdList->SetPipelineState(mSSAOPso);
 }
 
 void SSAOMap::SetPSOs(ID3D12PipelineState *ssaoPso) {
