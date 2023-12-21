@@ -6,11 +6,15 @@ SSAOMap::SSAOMap(
     UINT width,
     UINT height
 ) : md3dDevice(device) {
-
+    OnResize(width, height);
 }
 
 ID3D12Resource *SSAOMap::GetNormalMap() {
     return mNormalMap.Get();
+}
+
+CD3DX12_CPU_DESCRIPTOR_HANDLE SSAOMap::GetNormalMapRtv() const {
+    return mhNormalMapCpuRtv;
 }
 
 void SSAOMap::OnResize(UINT width, UINT height) {
@@ -77,6 +81,7 @@ void SSAOMap::BuildDescriptors(
     mhDepthMapGpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 
     mhNormalMapCpuRtv = hCpuRtv;
+    mhAmbientMap0CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
 
     RebuildDescriptors(depthStencilBuffer);
 }
@@ -106,4 +111,44 @@ void SSAOMap::RebuildDescriptors(ID3D12Resource *depthStencilBuffer) {
     rtvDesc.Texture2D.MipSlice = 0;
     rtvDesc.Texture2D.PlaneSlice = 0;
     md3dDevice->CreateRenderTargetView(mNormalMap.Get(), &rtvDesc, mhNormalMapCpuRtv);
+
+    // Ambient map 0 RTV.
+    rtvDesc.Format = AmbientMapFormat;
+    md3dDevice->CreateRenderTargetView(mAmbientMap0.Get(), &rtvDesc, mhAmbientMap0CpuRtv);
+}
+
+void SSAOMap::Compute(
+    ID3D12RootSignature *rootSignature,
+    ID3D12GraphicsCommandList5 *cmdList,
+    FrameResource *frameResource,
+    int blurCount
+) {
+    cmdList->SetGraphicsRootSignature(rootSignature);
+
+    cmdList->RSSetViewports(1, &mViewport);
+    cmdList->RSSetScissorRects(1, &mScissor);
+
+    CD3DX12_RESOURCE_BARRIER ambientMapRTBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        mAmbientMap0.Get(),
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_RENDER_TARGET
+    );
+    cmdList->ResourceBarrier(1, &ambientMapRTBarrier);
+
+    float clearValue[] = {1.0f, 1.0f, 1.0f, 1.0f};
+    cmdList->ClearRenderTargetView(mhAmbientMap0CpuRtv, clearValue, 0, nullptr);
+
+    // Ambient map 0 is the render target of the SSAO map construction pass.
+    cmdList->OMSetRenderTargets(1, &mhAmbientMap0CpuRtv, true, nullptr);
+
+    // Bind constant buffer.
+    auto ssaoCBAddress = frameResource->SSAOCB->Resource()->GetGPUVirtualAddress();
+    // Register b0 in SSAO shader: cbSSAO.
+    cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);
+    // Register b1 in SSAO shader: gHorizontalBlur.
+    cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
+    // Register t0 in SSAO shader: gNormalMap.
+    cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
+
+    cmdList->SetPipelineState(*m);
 }
