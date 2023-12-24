@@ -12,12 +12,18 @@ private:
     D3D12_RECT mScissor;
     Microsoft::WRL::ComPtr<ID3D12Resource> mNormalMap;
     Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap0;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mAmbientMap1;
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuSrv;
     CD3DX12_GPU_DESCRIPTOR_HANDLE mhNormalMapGpuSrv;
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhNormalMapCpuRtv;
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhDepthMapCpuSrv;
     CD3DX12_GPU_DESCRIPTOR_HANDLE mhDepthMapGpuSrv;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuSrv;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap0GpuSrv;
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap0CpuRtv;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuSrv;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap1GpuSrv;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuRtv;
     ID3D12PipelineState *mSSAOPso;
 
 public:

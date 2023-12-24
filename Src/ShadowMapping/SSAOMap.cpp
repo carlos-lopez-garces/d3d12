@@ -29,7 +29,7 @@ void SSAOMap::OnResize(UINT width, UINT height) {
         mViewport.MinDepth = 0.0f;
         mViewport.MaxDepth = 1.0f;
 
-        mScissor = { 0, 0, (int)mRenderTargetWidth / 2, (int)mRenderTargetHeight / 2 };
+        mScissor = { 0, 0, (int) mRenderTargetWidth / 2, (int) mRenderTargetHeight / 2 };
 
         // Rebuild render target.
         BuildResources();
@@ -65,8 +65,9 @@ void SSAOMap::BuildResources() {
         IID_PPV_ARGS(&mNormalMap)
     ));
 
-    // Ambient map 0.
+    // Ambient maps.
     mAmbientMap0 = nullptr;
+    mAmbientMap1 = nullptr;
 
     // Since SSAO map is low frequency, half the resolution suffices.
     textureDesc.Width = mRenderTargetWidth / 2;
@@ -82,7 +83,15 @@ void SSAOMap::BuildResources() {
         D3D12_RESOURCE_STATE_GENERIC_READ,
         &ambientClearValue,
         IID_PPV_ARGS(&mAmbientMap0))
-    );   
+    );
+    ThrowIfFailed(md3dDevice->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &textureDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        &ambientClearValue,
+        IID_PPV_ARGS(&mAmbientMap1))
+    );
 }
 
 void SSAOMap::BuildDescriptors(
@@ -95,12 +104,17 @@ void SSAOMap::BuildDescriptors(
 ) {
     mhNormalMapCpuSrv = hCpuSrv;
     mhDepthMapCpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+    mhAmbientMap0CpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+    mhAmbientMap1CpuSrv = hCpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 
     mhNormalMapGpuSrv = hGpuSrv;
     mhDepthMapGpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+    mhAmbientMap0GpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
+    mhAmbientMap1GpuSrv = hGpuSrv.Offset(1, cbvSrvUavDescriptorSize);
 
     mhNormalMapCpuRtv = hCpuRtv;
     mhAmbientMap0CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
+    mhAmbientMap1CpuRtv = hCpuRtv.Offset(1, rtvDescriptorSize);
 
     RebuildDescriptors(depthStencilBuffer);
 }
@@ -121,6 +135,11 @@ void SSAOMap::RebuildDescriptors(ID3D12Resource *depthStencilBuffer) {
     srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
     md3dDevice->CreateShaderResourceView(depthStencilBuffer, &srvDesc, mhDepthMapCpuSrv);
 
+    // Ambient map SRVs.
+    srvDesc.Format = AmbientMapFormat;
+    md3dDevice->CreateShaderResourceView(mAmbientMap0.Get(), &srvDesc, mhAmbientMap0CpuSrv);
+    md3dDevice->CreateShaderResourceView(mAmbientMap1.Get(), &srvDesc, mhAmbientMap1CpuSrv);
+
     // RTVs.
 
     // Normal map RTV.
@@ -131,9 +150,10 @@ void SSAOMap::RebuildDescriptors(ID3D12Resource *depthStencilBuffer) {
     rtvDesc.Texture2D.PlaneSlice = 0;
     md3dDevice->CreateRenderTargetView(mNormalMap.Get(), &rtvDesc, mhNormalMapCpuRtv);
 
-    // Ambient map 0 RTV.
+    // Ambient map RTVs.
     rtvDesc.Format = AmbientMapFormat;
     md3dDevice->CreateRenderTargetView(mAmbientMap0.Get(), &rtvDesc, mhAmbientMap0CpuRtv);
+    md3dDevice->CreateRenderTargetView(mAmbientMap1.Get(), &rtvDesc, mhAmbientMap1CpuRtv);
 }
 
 void SSAOMap::Compute(
@@ -167,7 +187,7 @@ void SSAOMap::Compute(
     // Register b1 in SSAO shader: gHorizontalBlur.
     //cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
     // Register t0 in SSAO shader: gNormalMap.
-    cmdList->SetGraphicsRootDescriptorTable(1, mhNormalMapGpuSrv);
+    cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
 
     cmdList->SetPipelineState(mSSAOPso);
 
