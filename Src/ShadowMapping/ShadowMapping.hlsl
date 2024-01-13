@@ -23,7 +23,8 @@ struct VertexIn {
 struct VertexOut {
     float4 PosH : SV_POSITION;
     float4 ShadowPosH : POSITION0;
-    float3 PosW : POSITION1;
+    float4 SSAOPosH : POSITION1;
+    float3 PosW : POSITION2;
     float3 NormalW : NORMAL;
     float3 TangentW : TANGENT;
     float2 TexC : TEXCOORD;
@@ -43,6 +44,8 @@ VertexOut VS(VertexIn vin) {
     vout.TexC = mul(texC, matData.MatTransform).xy;
     
     vout.ShadowPosH = mul(posW, gShadowTransform);
+
+    vout.SSAOPosH = mul(posW, gViewProjTex);
 
     return vout;
 }
@@ -67,7 +70,10 @@ float4 PS(VertexOut pin) : SV_TARGET {
 
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
-    float ambient = gAmbientLight * diffuseAlbedo;
+    pin.SSAOPosH /= pin.SSAOPosH.w;
+    float ambientAccess = gSSAOMap.Sample(gsamLinearClamp, pin.SSAOPosH.xy, 0.0f).r;
+
+    float4 ambient = ambientAccess * gAmbientLight * diffuseAlbedo;
 
     float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
     shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
