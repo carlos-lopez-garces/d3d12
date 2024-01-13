@@ -41,6 +41,13 @@ bool D3DApp::InitDirect3D() {
   // Used to create other DXGI objects and query device characteristics.
   ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
 
+  ComPtr<ID3D12DeviceRemovedExtendedDataSettings> pDredSettings;
+  ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&pDredSettings)));
+
+  // Turn on auto-breadcrumbs and page fault reporting.
+  pDredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+  pDredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+
   HRESULT hardwareResult = D3D12CreateDevice(
     // Choose the default display adapter (the GPU, as opposed to a software emulator).
     nullptr,
