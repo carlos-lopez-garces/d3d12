@@ -296,7 +296,7 @@ void ShadowMappingApp::InitializeGUI() {
 }
 
 void ShadowMappingApp::LoadModelFromGLTF() {
-  mGLTFLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/src/github.com/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+  mGLTFLoader = std::make_unique<GLTFLoader>(string("Assets/Sponza/Sponza.gltf"));
   mGLTFLoader->LoadModel();
 }
 
