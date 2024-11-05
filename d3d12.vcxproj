@@ -88,7 +88,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\carlo\Code\src\github.com\microsoft\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\carlo\Code\src\github.com\carlos-lopez-garces\d3d12\Src\UI\imgui\backends;C:\Users\carlo\Code\src\github.com\carlos-lopez-garces\d3d12\Src\UI\imgui;C:\Users\carlo\Code\src\github.com\microsoft\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -122,7 +122,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>Default</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\carlo\Code\src\github.com\microsoft\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\carlo\Code\src\github.com\carlos-lopez-garces\d3d12\Src\UI\imgui\backends;C:\Users\carlo\Code\src\github.com\carlos-lopez-garces\d3d12\Src\UI\imgui;C:\Users\carlo\Code\src\github.com\microsoft\DirectXTex;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -157,7 +157,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Src\Blending\Waves.h" />
     <ClInclude Include="Src\Common\Camera.h" />
     <ClInclude Include="Src\Common\d3dApp.h" />
     <ClInclude Include="Src\Common\d3dUtil.h" />
@@ -165,31 +164,71 @@
     <ClInclude Include="Src\Common\DDSTextureLoader.h" />
     <ClInclude Include="Src\Common\GameTimer.h" />
     <ClInclude Include="Src\Common\GeometryGenerator.h" />
+    <ClInclude Include="Src\Common\GLTFLoader.h" />
     <ClInclude Include="Src\Common\Math.h" />
     <ClInclude Include="Src\Common\UploadBuffer.h" />
+    <ClInclude Include="Src\Loading\json.hpp" />
+    <ClInclude Include="Src\Loading\stb_image.h" />
+    <ClInclude Include="Src\Loading\stb_image_write.h" />
+    <ClInclude Include="Src\Loading\tiny_gltf.h" />
+    <ClInclude Include="Src\ShadowMapping\SSAOMap.h" />
+    <ClInclude Include="Src\Stenciling\FrameResource.h" />
+    <ClInclude Include="Src\Stenciling\RenderItem.h" />
     <ClInclude Include="Src\Texturing\FrameResource.h" />
+    <ClInclude Include="Src\UI\imgui\backends\imgui_impl_dx12.h" />
+    <ClInclude Include="Src\UI\imgui\backends\imgui_impl_win32.h" />
+    <ClInclude Include="Src\UI\imgui\imconfig.h" />
+    <ClInclude Include="Src\UI\imgui\imgui.h" />
+    <ClInclude Include="Src\UI\imgui\imgui_internal.h" />
+    <ClInclude Include="Src\UI\imgui\imstb_rectpack.h" />
+    <ClInclude Include="Src\UI\imgui\imstb_textedit.h" />
+    <ClInclude Include="Src\UI\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\UI\imgui\misc\cpp\imgui_stdlib.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Assets\bricks.dds" />
+    <Image Include="Assets\bricks3.dds" />
+    <Image Include="Assets\checkboard.dds" />
+    <Image Include="Assets\ice.dds" />
     <Image Include="Assets\stone.dds" />
     <Image Include="Assets\tile.dds" />
+    <Image Include="Assets\white1x1.dds" />
     <Image Include="d3d12.ico" />
     <Image Include="small.ico" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Src\Blending\BlendingApp.cpp" />
-    <ClCompile Include="Src\Blending\Waves.cpp" />
     <ClCompile Include="Src\Common\Camera.cpp" />
     <ClCompile Include="Src\Common\d3dApp.cpp" />
     <ClCompile Include="Src\Common\d3dUtil.cpp" />
     <ClCompile Include="Src\Common\DDSTextureLoader.cpp" />
+    <ClCompile Include="Src\Common\FileSystem.cpp" />
     <ClCompile Include="Src\Common\GameTimer.cpp" />
     <ClCompile Include="Src\Common\GeometryGenerator.cpp" />
+    <ClCompile Include="Src\Common\GLTFLoader.cpp" />
     <ClCompile Include="Src\Common\Math.cpp" />
+    <ClCompile Include="Src\ShadowMapping\FrameResource.cpp" />
+    <ClCompile Include="Src\ShadowMapping\ShadowMap.cpp" />
+    <ClCompile Include="Src\ShadowMapping\ShadowMappingApp.cpp" />
+    <ClCompile Include="Src\ShadowMapping\Ssao.cpp" />
+    <ClCompile Include="Src\ShadowMapping\SSAOMap.cpp" />
+    <ClCompile Include="Src\UI\imgui\backends\imgui_impl_dx12.cpp" />
+    <ClCompile Include="Src\UI\imgui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="Src\UI\imgui\imgui.cpp" />
+    <ClCompile Include="Src\UI\imgui\imgui_demo.cpp" />
+    <ClCompile Include="Src\UI\imgui\imgui_draw.cpp" />
+    <ClCompile Include="Src\UI\imgui\imgui_tables.cpp" />
+    <ClCompile Include="Src\UI\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\UI\imgui\misc\cpp\imgui_stdlib.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Assets\skull.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Src\UI\imgui\misc\debuggers\imgui.natstepfilter" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="Src\UI\imgui\misc\debuggers\imgui.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -52,8 +52,26 @@
     <Filter Include="Header Files\BlendingApp">
       <UniqueIdentifier>{04a14618-ed60-422a-ac59-c16e972aa4c6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\BlendingApp">
+    <Filter Include="Header Files\StencilingApp">
+      <UniqueIdentifier>{07246874-5769-452c-9db2-4ce98a316169}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Stenciling">
+      <UniqueIdentifier>{b5eb0683-36e7-4683-94fb-c4482a62d5b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Blending">
       <UniqueIdentifier>{74376be9-2ac4-4f7d-bbcc-8e8a03b225d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Loading">
+      <UniqueIdentifier>{df022f67-234b-4464-95aa-d7b00150a698}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\UI">
+      <UniqueIdentifier>{7644048e-91c8-406c-9b0f-89762ba38ce0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\UI">
+      <UniqueIdentifier>{83bcaefa-67a6-4466-a91a-3751b33dbb87}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ShadowMapping">
+      <UniqueIdentifier>{cfc04e8a-b90b-4ba8-a8cd-0ff08aef7e51}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -90,8 +108,56 @@
     <ClInclude Include="Src\Common\Camera.h">
       <Filter>Header Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Blending\Waves.h">
-      <Filter>Header Files\BlendingApp</Filter>
+    <ClInclude Include="Src\Stenciling\FrameResource.h">
+      <Filter>Header Files\StencilingApp</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Stenciling\RenderItem.h">
+      <Filter>Header Files\StencilingApp</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Loading\json.hpp">
+      <Filter>Header Files\Loading</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Loading\stb_image.h">
+      <Filter>Header Files\Loading</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Loading\stb_image_write.h">
+      <Filter>Header Files\Loading</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Loading\tiny_gltf.h">
+      <Filter>Header Files\Loading</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Common\GLTFLoader.h">
+      <Filter>Header Files\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\imconfig.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\imgui.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\imgui_internal.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\imstb_rectpack.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\imstb_textedit.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\imstb_truetype.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\backends\imgui_impl_dx12.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\backends\imgui_impl_win32.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UI\imgui\misc\cpp\imgui_stdlib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ShadowMapping\SSAOMap.h">
+      <Filter>Header Files\ShadowMapping</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -108,6 +174,18 @@
       <Filter>Resource Files\Assets</Filter>
     </Image>
     <Image Include="Assets\tile.dds">
+      <Filter>Resource Files\Assets</Filter>
+    </Image>
+    <Image Include="Assets\bricks3.dds">
+      <Filter>Resource Files\Assets</Filter>
+    </Image>
+    <Image Include="Assets\checkboard.dds">
+      <Filter>Resource Files\Assets</Filter>
+    </Image>
+    <Image Include="Assets\ice.dds">
+      <Filter>Resource Files\Assets</Filter>
+    </Image>
+    <Image Include="Assets\white1x1.dds">
       <Filter>Resource Files\Assets</Filter>
     </Image>
   </ItemGroup>
@@ -133,16 +211,61 @@
     <ClCompile Include="Src\Common\Camera.cpp">
       <Filter>Header Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Blending\BlendingApp.cpp">
-      <Filter>Source Files\BlendingApp</Filter>
+    <ClCompile Include="Src\Common\GLTFLoader.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Blending\Waves.cpp">
-      <Filter>Source Files\BlendingApp</Filter>
+    <ClCompile Include="Src\Common\FileSystem.cpp">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ShadowMapping\FrameResource.cpp">
+      <Filter>Source Files\ShadowMapping</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ShadowMapping\ShadowMap.cpp">
+      <Filter>Source Files\ShadowMapping</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ShadowMapping\ShadowMappingApp.cpp">
+      <Filter>Source Files\ShadowMapping</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\imgui.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\imgui_demo.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\imgui_draw.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\imgui_tables.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\imgui_widgets.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\backends\imgui_impl_dx12.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\backends\imgui_impl_win32.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UI\imgui\misc\cpp\imgui_stdlib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ShadowMapping\SSAOMap.cpp">
+      <Filter>Source Files\ShadowMapping</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ShadowMapping\Ssao.cpp">
+      <Filter>Source Files\ShadowMapping</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Assets\skull.txt">
       <Filter>Resource Files\Assets</Filter>
     </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Src\UI\imgui\misc\debuggers\imgui.natstepfilter" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="Src\UI\imgui\misc\debuggers\imgui.natvis" />
   </ItemGroup>
 </Project>
