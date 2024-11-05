@@ -146,11 +146,11 @@ private:
   UINT mNullTexSrvIndex = 0;
   UINT mGLTFTexSrvIndex = 0;
   UINT mSSAOHeapIndex = 0;
-  UINT mSsaoHeapIndexStart = 0;
-  UINT mSsaoAmbientMapIndex = 0;
 
   // TODO: what's this SRV for?
   CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
+  CD3DX12_GPU_DESCRIPTOR_HANDLE mSkySrv;
+  CD3DX12_GPU_DESCRIPTOR_HANDLE mGLTFTexSrv;
 
   std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
 
@@ -558,16 +558,16 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   // Save heap indices of SRVs.
   mSkyTexHeapIndex = (UINT)tex2DList.size();
   mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
-  mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
+  mSSAOHeapIndex = mShadowMapHeapIndex + 1;
+  mNullCubeSrvIndex = mSSAOHeapIndex + 5;
   mNullTexSrvIndex = mNullCubeSrvIndex + 1;
   mGLTFTexSrvIndex = mNullTexSrvIndex + 1;
-  // Will be incremented below. Will go after all GLTF textures.
-  mSSAOHeapIndex = mGLTFTexSrvIndex + 1; 
-  mSsaoHeapIndexStart = mGLTFTexSrvIndex + 1;
 
   auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
   auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
   auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+  mSkySrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
 
   // TODO: what's this SRV for?
   auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
@@ -581,6 +581,8 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
   srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
   md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
   hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+
+  mGLTFTexSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mGLTFTexSrvIndex, mCbvSrvUavDescriptorSize);
 
   // SRV descriptors for textures loaded from glTF.
   srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -597,8 +599,6 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
     md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
     // Advance hDescriptor to point to the block where the next SRV will be created.
     hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
-    mSSAOHeapIndex++;
-    mSsaoHeapIndexStart++;
 
     if (mGLTFMaterials[i].normalMap != -1) {
       auto &nor = mUnnamedTextures[mGLTFMaterials[i].normalMap];
@@ -607,8 +607,6 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
       md3dDevice->CreateShaderResourceView(nor->Resource.Get(), &srvDesc, hDescriptor);
       // Advance hDescriptor to point to the block where the next SRV will be created.
       hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
-      mSSAOHeapIndex++;
-      mSsaoHeapIndexStart++;
     }
   }
 
@@ -618,13 +616,11 @@ void ShadowMappingApp::BuildDescriptorHeaps() {
     CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize)
   );
 
-  mSsaoAmbientMapIndex = mSsaoHeapIndexStart + 3;
-
   mSSAOMap->BuildDescriptors(
     // From base class D3DApp.
     mDepthStencilBuffer.Get(),
-    GetCpuSrv(mSsaoHeapIndexStart),
-    GetGpuSrv(mSsaoHeapIndexStart),
+    GetCpuSrv(mSSAOHeapIndex),
+    GetGpuSrv(mSSAOHeapIndex),
     // 2 RTVs for each of the 2 swap chain buffers. A 3rd one for the SSAO map, with
     // index SwapChainBufferCount = 2?
     GetRtv(SwapChainBufferCount),
@@ -1480,7 +1476,7 @@ void ShadowMappingApp::Draw(const GameTimer &gt) {
   mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
   mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
-  // mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);
+  mCommandList->SetGraphicsRootDescriptorTable(3, mSkySrv);
   mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
   mCommandList->RSSetViewports(1, &mScreenViewport);

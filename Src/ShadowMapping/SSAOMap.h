@@ -25,6 +25,12 @@ private:
     CD3DX12_GPU_DESCRIPTOR_HANDLE mhAmbientMap1GpuSrv;
     CD3DX12_CPU_DESCRIPTOR_HANDLE mhAmbientMap1CpuRtv;
     ID3D12PipelineState *mSSAOPso;
+    ID3D12PipelineState* mBlurPso;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMap;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mRandomVectorMapUploadBuffer;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mhRandomVectorMapCpuSrv;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mhRandomVectorMapGpuSrv;
+    DirectX::XMFLOAT4 mOffsets[14];
 
 public:
     static const DXGI_FORMAT NormalMapFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -63,5 +69,17 @@ public:
         int blurCount
     );
 
-    void SetPSOs(ID3D12PipelineState *ssaoPso);
+    void SetPSOs(ID3D12PipelineState *ssaoPso, ID3D12PipelineState* ssaoBlurPso);
+
+    void GetOffsetVectors(DirectX::XMFLOAT4 offsets[14]);
+    std::vector<float> CalcGaussWeights(float sigma);
+
+    UINT SsaoMapWidth()const;
+    UINT SsaoMapHeight()const;
+
+private:
+    void BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount);
+	void BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, bool horzBlur);
+    void BuildRandomVectorTexture(ID3D12GraphicsCommandList* cmdList);
+	void BuildOffsetVectors();
 };
